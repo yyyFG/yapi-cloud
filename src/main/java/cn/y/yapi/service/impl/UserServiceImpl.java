@@ -3,6 +3,9 @@ package cn.y.yapi.service.impl;
 import static cn.y.yapi.constant.UserConstant.USER_LOGIN_STATE;
 
 import cn.hutool.core.collection.CollUtil;
+import cn.hutool.core.util.RandomUtil;
+import cn.hutool.crypto.digest.DigestUtil;
+import cn.y.yapiclientsdk.utils.SignUtils;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import cn.y.yapi.common.ErrorCode;
@@ -18,6 +21,7 @@ import cn.y.yapi.service.UserService;
 import cn.y.yapi.utils.SqlUtils;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Random;
 import java.util.stream.Collectors;
 import javax.servlet.http.HttpServletRequest;
 import lombok.extern.slf4j.Slf4j;
@@ -64,10 +68,16 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
             }
             // 2. 加密
             String encryptPassword = DigestUtils.md5DigestAsHex((SALT + userPassword).getBytes());
+            // 分配 accessKey、secretKey
+            // 使用 DigestUtil.md5Hex 将盐值、用户账号和 5或8 位随机数进行 MD5 加密
+            String accessKey = DigestUtil.md5Hex(SALT + userAccount + RandomUtil.randomNumbers(5));
+            String secretKey = DigestUtil.md5Hex(SALT + userAccount + RandomUtil.randomNumbers(8));
             // 3. 插入数据
             User user = new User();
             user.setUserAccount(userAccount);
             user.setUserPassword(encryptPassword);
+            user.setAccessKey(accessKey);
+            user.setSecretKey(secretKey);
             boolean saveResult = this.save(user);
             if (!saveResult) {
                 throw new BusinessException(ErrorCode.SYSTEM_ERROR, "注册失败，数据库错误");
@@ -215,8 +225,6 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
             throw new BusinessException(ErrorCode.PARAMS_ERROR, "请求参数为空");
         }
         Long id = userQueryRequest.getId();
-        String unionId = userQueryRequest.getUnionId();
-        String mpOpenId = userQueryRequest.getMpOpenId();
         String userName = userQueryRequest.getUserName();
         String userProfile = userQueryRequest.getUserProfile();
         String userRole = userQueryRequest.getUserRole();
@@ -224,8 +232,6 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
         String sortOrder = userQueryRequest.getSortOrder();
         QueryWrapper<User> queryWrapper = new QueryWrapper<>();
         queryWrapper.eq(id != null, "id", id);
-        queryWrapper.eq(StringUtils.isNotBlank(unionId), "unionId", unionId);
-        queryWrapper.eq(StringUtils.isNotBlank(mpOpenId), "mpOpenId", mpOpenId);
         queryWrapper.eq(StringUtils.isNotBlank(userRole), "userRole", userRole);
         queryWrapper.like(StringUtils.isNotBlank(userProfile), "userProfile", userProfile);
         queryWrapper.like(StringUtils.isNotBlank(userName), "userName", userName);

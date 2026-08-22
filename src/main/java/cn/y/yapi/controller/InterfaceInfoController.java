@@ -1,10 +1,13 @@
 package cn.y.yapi.controller;
 
 
+import cn.y.yapi.annotation.AuthCheck;
 import cn.y.yapi.common.*;
+import cn.y.yapi.constant.UserConstant;
 import cn.y.yapi.exception.BusinessException;
 import cn.y.yapi.exception.ThrowUtils;
 import cn.y.yapi.model.dto.interfaceInfo.InterfaceInfoAddRequest;
+import cn.y.yapi.model.dto.interfaceInfo.InterfaceInfoInvokeRequest;
 import cn.y.yapi.model.dto.interfaceInfo.InterfaceInfoQueryRequest;
 import cn.y.yapi.model.dto.interfaceInfo.InterfaceInfoUpdateRequest;
 import cn.y.yapi.model.dto.user.UserQueryRequest;
@@ -24,6 +27,8 @@ import org.springframework.web.bind.annotation.RestController;
 import javax.annotation.Resource;
 import javax.servlet.http.HttpServletRequest;
 import java.util.List;
+
+import static cn.y.yapi.constant.UserConstant.ADMIN_ROLE;
 
 
 /**
@@ -50,7 +55,6 @@ public class InterfaceInfoController {
         if (!result) {
             throw new BusinessException(ErrorCode.SYSTEM_ERROR, "新增接口失败");
         }
-
         return ResultUtils.success(true);
     }
 
@@ -106,6 +110,23 @@ public class InterfaceInfoController {
         return ResultUtils.success(interfaceInfoPage);
     }
 
+    /**
+     * 分页获取接口封装列表（管理员）
+     *
+     * @param interfaceInfoQueryRequest
+     * @return
+     */
+    @PostMapping("/list/page/admin")
+    @AuthCheck(mustRole = UserConstant.ADMIN_ROLE)
+    public BaseResponse<Page<InterfaceInfo>> listInterfaceByPageByAdmin(@RequestBody InterfaceInfoQueryRequest interfaceInfoQueryRequest) {
+        int current = interfaceInfoQueryRequest.getCurrent();
+        int size = interfaceInfoQueryRequest.getPageSize();
+        Page<InterfaceInfo> interfaceInfoPage = interfaceInfoService.page(new Page<>(current, size),
+                interfaceInfoService.getQueryWrapper(interfaceInfoQueryRequest));
+
+        return ResultUtils.success(interfaceInfoPage);
+    }
+
 
     /**
      * 发布接口
@@ -150,5 +171,24 @@ public class InterfaceInfoController {
         }
 
         return ResultUtils.success(true);
+    }
+
+    /**
+     * 在线调用接口
+     * @param interfaceInfoInvokeRequest
+     * @param request
+     * @return
+     */
+    @PostMapping("/invoke")
+    public BaseResponse<String> invokeInterface(@RequestBody InterfaceInfoInvokeRequest interfaceInfoInvokeRequest,
+                                                  HttpServletRequest request) {
+        if (interfaceInfoInvokeRequest == null) {
+            throw new BusinessException(ErrorCode.PARAMS_ERROR);
+        }
+        // 判断用户是否登录
+        User loginUser = userService.getLoginUser(request);
+        String result = interfaceInfoService.invokeInterface(interfaceInfoInvokeRequest, loginUser);
+
+        return ResultUtils.success(result);
     }
 }

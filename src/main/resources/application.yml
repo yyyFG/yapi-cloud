@@ -71,7 +71,3 @@ knife4j:
         api-rule: package
         api-rule-resources:
           - cn.y.yapi.controller
-yapi:
-  client:
-    secret-key: abcdefgh
-    access-key: yyy

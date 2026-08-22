@@ -3,6 +3,7 @@ package cn.y.yapi.service;
 import cn.y.yapi.common.DeleteRequest;
 import cn.y.yapi.common.IdRequest;
 import cn.y.yapi.model.dto.interfaceInfo.InterfaceInfoAddRequest;
+import cn.y.yapi.model.dto.interfaceInfo.InterfaceInfoInvokeRequest;
 import cn.y.yapi.model.dto.interfaceInfo.InterfaceInfoQueryRequest;
 import cn.y.yapi.model.dto.interfaceInfo.InterfaceInfoUpdateRequest;
 import cn.y.yapi.model.entity.InterfaceInfo;
@@ -53,6 +54,8 @@ public interface InterfaceInfoService extends IService<InterfaceInfo> {
      * @return
      */
     Boolean offlineInterface(DeleteRequest deleteRequest, User loginUser);
+
+    String invokeInterface(InterfaceInfoInvokeRequest interfaceInfoInvokeRequest, User loginUser);
 
     /**
      * 获取查询条件

@@ -3,7 +3,7 @@ DROP table if exists `interface_info`;
 create table if not exists `interface_info`
 (
     `id` bigint not null auto_increment comment '主键' primary key,
-    `name` varchar(256) not null comment '名称',
+    `interfaceName` varchar(256) not null comment '名称',
     `description` varchar(256) null comment '描述',
     `url` varchar(512) not null comment '接口地址',
     `requestHeader` text null comment '请求头',

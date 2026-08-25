@@ -15,6 +15,7 @@ import cn.y.yapi.model.entity.InterfaceInfo;
 import cn.y.yapi.model.entity.User;
 import cn.y.yapi.model.vo.UserVO;
 import cn.y.yapi.service.InterfaceInfoService;
+import cn.y.yapi.service.UserInterfaceService;
 import cn.y.yapi.service.UserService;
 import cn.y.yapiclientsdk.client.YApiClient;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
@@ -44,6 +45,15 @@ public class InterfaceInfoController {
     @Resource
     private InterfaceInfoService interfaceInfoService;
 
+    @Resource
+    private UserInterfaceService userInterfaceService;
+
+    /**
+     * 增加接口
+     * @param interfaceInfoAddRequest
+     * @param request
+     * @return
+     */
     @PostMapping("/add")
     public BaseResponse<Boolean> addInterfaceInfo(@RequestBody InterfaceInfoAddRequest interfaceInfoAddRequest,
                                                   HttpServletRequest request) {
@@ -58,7 +68,12 @@ public class InterfaceInfoController {
         return ResultUtils.success(true);
     }
 
-
+    /**
+     * 更新接口
+     * @param interfaceInfoUpdateRequest
+     * @param request
+     * @return
+     */
     @PostMapping("/update")
     public BaseResponse<Boolean> updateInterfaceInfo(@RequestBody InterfaceInfoUpdateRequest interfaceInfoUpdateRequest,
                                                  HttpServletRequest request) {
@@ -73,6 +88,12 @@ public class InterfaceInfoController {
         return ResultUtils.success(true);
     }
 
+    /**
+     * 删除接口
+     * @param deleteRequest
+     * @param request
+     * @return
+     */
     @PostMapping("/delete")
     public BaseResponse<Boolean> deleteInterface(@RequestBody DeleteRequest deleteRequest, HttpServletRequest request) {
         if (deleteRequest == null || deleteRequest.getId() <= 0) {
@@ -88,7 +109,6 @@ public class InterfaceInfoController {
 
     /**
      * 分页获取接口封装列表
-     *
      * @param interfaceInfoQueryRequest
      * @param request
      * @return
@@ -112,7 +132,6 @@ public class InterfaceInfoController {
 
     /**
      * 分页获取接口封装列表（管理员）
-     *
      * @param interfaceInfoQueryRequest
      * @return
      */
@@ -187,8 +206,13 @@ public class InterfaceInfoController {
         }
         // 判断用户是否登录
         User loginUser = userService.getLoginUser(request);
-        String result = interfaceInfoService.invokeInterface(interfaceInfoInvokeRequest, loginUser);
+//        userInterfaceService.applyInterface();
+//        if () {
+//            String result = interfaceInfoService.invokeInterface(interfaceInfoInvokeRequest, loginUser);
+//            userInterfaceService.updateUserInterface();
+//        }
 
+        String result = interfaceInfoService.invokeInterface(interfaceInfoInvokeRequest, loginUser);
         return ResultUtils.success(result);
     }
 }

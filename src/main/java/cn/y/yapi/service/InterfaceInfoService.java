@@ -16,7 +16,6 @@ import com.baomidou.mybatisplus.extension.service.IService;
 */
 public interface InterfaceInfoService extends IService<InterfaceInfo> {
 
-
     /**
      * 新增接口
      * @param interfaceInfoAddRequest
@@ -55,6 +54,12 @@ public interface InterfaceInfoService extends IService<InterfaceInfo> {
      */
     Boolean offlineInterface(DeleteRequest deleteRequest, User loginUser);
 
+    /**
+     * 在线调用接口
+     * @param interfaceInfoInvokeRequest
+     * @param loginUser
+     * @return
+     */
     String invokeInterface(InterfaceInfoInvokeRequest interfaceInfoInvokeRequest, User loginUser);
 
     /**

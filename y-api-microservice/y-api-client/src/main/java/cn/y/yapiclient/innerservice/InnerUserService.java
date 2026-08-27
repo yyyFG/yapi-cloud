@@ -14,6 +14,13 @@ import static cn.y.yapicommon.constant.UserConstant.USER_LOGIN_STATE;
 public interface InnerUserService {
 
     /**
+     * 根据 id 获取 user
+     * @param userId
+     * @return
+     */
+    User getById(Long userId);
+
+    /**
      * 获取当前登录用户
      *
      * @param request

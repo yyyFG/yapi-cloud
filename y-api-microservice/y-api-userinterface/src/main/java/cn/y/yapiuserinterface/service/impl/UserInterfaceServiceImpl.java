@@ -1,10 +1,14 @@
 package cn.y.yapiuserinterface.service.impl;
 
+import cn.hutool.core.bean.BeanUtil;
 import cn.y.yapiclient.innerservice.InnerInterfaceInfoService;
-import cn.y.yapiclient.innerservice.InnerUserInterfaceService;
+import cn.y.yapiclient.innerservice.InnerUserService;
 import cn.y.yapicommon.common.DeleteRequest;
 import cn.y.yapicommon.common.ErrorCode;
+import cn.y.yapicommon.constant.CommonConstant;
+import cn.y.yapicommon.constant.UserInterfaceInfoConstant;
 import cn.y.yapicommon.exception.BusinessException;
+import cn.y.yapicommon.utils.SqlUtils;
 import cn.y.yapiuserinterface.mapper.UserInterfaceMapper;
 import cn.y.yapimodel.dto.userinterface.UserInterfaceAddRequest;
 import cn.y.yapimodel.dto.userinterface.UserInterfaceApplyRequest;
@@ -20,6 +24,11 @@ import lombok.extern.slf4j.Slf4j;
 import org.apache.dubbo.config.annotation.DubboReference;
 import org.springframework.stereotype.Service;
 
+import java.util.Date;
+
+import static cn.y.yapimodel.enums.InterfaceStatusEnum.PUBLISH;
+import static cn.y.yapimodel.enums.UserRoleEnum.BAN;
+
 
 /**
  * 用户接口调用关系服务实现
@@ -32,34 +41,131 @@ public class UserInterfaceServiceImpl extends ServiceImpl<UserInterfaceMapper, U
     @DubboReference
     private InnerInterfaceInfoService innerInterfaceInfoService;
 
+    @DubboReference
+    private InnerUserService innerUserService;
+
     @Override
-    public Boolean addUserInterface(UserInterfaceAddRequest userInterfaceAddRequest, User loginUser) {
-        return null;
+    public Boolean addUserInterface(UserInterfaceAddRequest userInterfaceAddRequest) {
+        if (userInterfaceAddRequest.getUserId() == null || userInterfaceAddRequest.getInterfaceId() == null) {
+            throw new BusinessException(ErrorCode.PARAMS_ERROR, "参数不能为空");
+        }
+        if (userInterfaceAddRequest.getTotalNum() == null || userInterfaceAddRequest.getTotalNum() < 0 ){
+            throw new BusinessException(ErrorCode.PARAMS_ERROR, "调用次数不合法");
+        }
+        if (userInterfaceAddRequest.getLeftNum() != null && userInterfaceAddRequest.getLeftNum() > userInterfaceAddRequest.getTotalNum()) {
+            throw new BusinessException(ErrorCode.PARAMS_ERROR, "调用次数不合法");
+        } else if (userInterfaceAddRequest.getLeftNum() == null){
+            // 未指定剩余次数时，默认等于总次数
+            userInterfaceAddRequest.setLeftNum(userInterfaceAddRequest.getTotalNum());
+        }
+        Long userId = userInterfaceAddRequest.getUserId();
+        validateUser(userId);
+        Long interfaceId = userInterfaceAddRequest.getInterfaceId();
+        validateInterface(interfaceId);
+        // 检查用户是否已经有此接口的调用关系
+        QueryWrapper<UserInterface> queryWrapper = new QueryWrapper<>();
+        queryWrapper.eq("userId", userId).eq("interfaceId", interfaceId);
+        long count = this.count(queryWrapper);
+        if (count > 0) {
+            throw new BusinessException(ErrorCode.OPERATION_ERROR, "该用户已拥有此接口的调用信息");
+        }
+        UserInterface userInterface = new UserInterface();
+        BeanUtil.copyProperties(userInterfaceAddRequest, userInterface);
+        userInterface.setStatus(UserInterfaceInfoConstant.USER_INTERFACE_OK);
+        return this.save(userInterface);
     }
 
     @Override
-    public Boolean updateUserInterface(UserInterfaceUpdateRequest userInterfaceUpdateRequest, User loginUser) {
-        return null;
+    public Boolean updateUserInterface(UserInterfaceUpdateRequest userInterfaceUpdateRequest) {
+        if (userInterfaceUpdateRequest.getUserId() == null || userInterfaceUpdateRequest.getInterfaceId() == null) {
+            throw new BusinessException(ErrorCode.PARAMS_ERROR, "参数不能为空");
+        }
+        if (userInterfaceUpdateRequest.getLeftNum() != null && userInterfaceUpdateRequest.getTotalNum() != null
+                && userInterfaceUpdateRequest.getLeftNum() > userInterfaceUpdateRequest.getTotalNum()) {
+            throw new BusinessException(ErrorCode.PARAMS_ERROR, "调用次数不合法");
+        }
+        // 校验传入的状态值合法（0-正常，1-禁用）
+        Integer newStatus = userInterfaceUpdateRequest.getStatus();
+        if (newStatus != null && !UserInterfaceInfoConstant.USER_INTERFACE_OK.equals(newStatus)
+                && !UserInterfaceInfoConstant.USER_INTERFACE_BAN.equals(newStatus)) {
+            throw new BusinessException(ErrorCode.PARAMS_ERROR, "接口调用状态不合法");
+        }
+        Long userId = userInterfaceUpdateRequest.getUserId();
+        validateUser(userId);
+        Long interfaceId = userInterfaceUpdateRequest.getInterfaceId();
+        validateInterface(interfaceId);
+        // 检查用户是否有此接口的调用关系
+        QueryWrapper<UserInterface> queryWrapper = new QueryWrapper<>();
+        queryWrapper.eq("userId", userId).eq("interfaceId", interfaceId);
+        UserInterface userInterface = this.getOne(queryWrapper);
+        if (userInterface == null) {
+            throw new BusinessException(ErrorCode.NOT_FOUND_ERROR, "用户接口调用信息不存在");
+        }
+        if (userInterfaceUpdateRequest.getTotalNum() == null && userInterfaceUpdateRequest.getLeftNum() != null
+                && userInterfaceUpdateRequest.getLeftNum() > userInterface.getTotalNum()) {
+            throw new BusinessException(ErrorCode.PARAMS_ERROR, "新增的剩余接口调用次数不能大于原总数接口调用次数");
+        }
+        BeanUtil.copyProperties(userInterfaceUpdateRequest, userInterface);
+        userInterface.setUpdateTime(new Date());
+        return this.updateById(userInterface);
     }
 
     @Override
-    public Boolean deleteUserInterface(DeleteRequest deleteRequest, User loginUser) {
-        return null;
+    public Boolean deleteUserInterface(DeleteRequest deleteRequest) {
+        UserInterface userInterface = this.getById(deleteRequest.getId());
+        if (userInterface == null) {
+            throw new BusinessException(ErrorCode.NOT_FOUND_ERROR, "用户接口调用信息不存在");
+        }
+
+        return this.removeById(userInterface);
     }
 
     @Override
-    public String applyInterface(UserInterfaceApplyRequest userInterfaceApplyRequest, User loginUser) {
-        return null;
+    public Boolean applyInterface(UserInterfaceApplyRequest userInterfaceApplyRequest, User loginUser) {
+        Long userId = loginUser.getId();
+        validateUser(userId);
+        Long interfaceId = userInterfaceApplyRequest.getInterfaceId();
+        validateInterface(interfaceId);
+        QueryWrapper<UserInterface> queryWrapper = new QueryWrapper<>();
+        queryWrapper.eq("userId", userId).eq("interfaceId", interfaceId);
+        long count = this.count(queryWrapper);
+        if (count > 0) {
+            throw new BusinessException(ErrorCode.PARAMS_ERROR, "已经申请过该接口了");
+        }
+
+        UserInterface userInterface = new UserInterface();
+        BeanUtil.copyProperties(userInterfaceApplyRequest, userInterface);
+        userInterface.setUserId(userId);
+        // 默认总调用数
+        userInterface.setTotalNum(UserInterfaceInfoConstant.USER_INTERFACE_DEFAULT_NUM);
+        userInterface.setLeftNum(UserInterfaceInfoConstant.USER_INTERFACE_DEFAULT_NUM);
+        userInterface.setStatus(UserInterfaceInfoConstant.USER_INTERFACE_OK);
+
+        return this.save(userInterface);
     }
 
-    @Override
-    public InterfaceInfo getUserInterface(UserInterfaceQueryRequest userInterfaceQueryRequest, User loginUser) {
-        return null;
-    }
 
     @Override
-    public QueryWrapper<InterfaceInfo> getQueryWrapper(UserInterfaceQueryRequest userInterfaceQueryRequest) {
-        return null;
+    public QueryWrapper<UserInterface> getQueryWrapper(UserInterfaceQueryRequest userInterfaceQueryRequest) {
+        if (userInterfaceQueryRequest == null) {
+            throw new BusinessException(ErrorCode.PARAMS_ERROR, "请求参数为空");
+        }
+        Long id = userInterfaceQueryRequest.getId();
+        Long interfaceId = userInterfaceQueryRequest.getInterfaceId();
+        Long userId = userInterfaceQueryRequest.getUserId();
+        Integer leftNum = userInterfaceQueryRequest.getLeftNum();
+        Integer totalNum = userInterfaceQueryRequest.getTotalNum();
+        String sortField = userInterfaceQueryRequest.getSortField();
+        String sortOrder = userInterfaceQueryRequest.getSortOrder();
+        QueryWrapper<UserInterface> queryWrapper = new QueryWrapper<>();
+        queryWrapper.eq(id != null, "id", id);
+        queryWrapper.eq(userId != null, "userId", userId);
+        queryWrapper.eq(interfaceId != null, "interfaceId", interfaceId);
+        queryWrapper.eq(leftNum != null, "leftNum", leftNum);
+        queryWrapper.eq(totalNum != null, "totalNum", totalNum);
+        queryWrapper.orderBy(SqlUtils.validSortField(sortField), CommonConstant.SORT_ORDER_ASC.equals(sortOrder),
+                sortField);
+        return queryWrapper;
     }
 
     /**
@@ -90,11 +196,39 @@ public class UserInterfaceServiceImpl extends ServiceImpl<UserInterfaceMapper, U
         if (status == 1) {
             throw new BusinessException(ErrorCode.OPERATION_ERROR, "已被禁止调用此接口");
         }
-        if (leftNum < 0) {
+        if (leftNum <= 0) {
             throw new BusinessException(ErrorCode.OPERATION_ERROR, "剩余调用次数不足");
         }
 
         return null;
+    }
+
+    /**
+     * 校验用户存在且未被封禁
+     */
+    private User validateUser(Long userId) {
+        User user = innerUserService.getById(userId);
+        if (user == null) {
+            throw new BusinessException(ErrorCode.NOT_FOUND_ERROR, "用户不存在");
+        }
+        if (BAN.getValue().equals(user.getUserRole())) {
+            throw new BusinessException(ErrorCode.OPERATION_ERROR, "用户已封禁");
+        }
+        return user;
+    }
+
+    /**
+     * 校验接口存在且已发布
+     */
+    private InterfaceInfo validateInterface(Long interfaceId) {
+        InterfaceInfo interfaceInfo = innerInterfaceInfoService.getById(interfaceId);
+        if (interfaceInfo == null) {
+            throw new BusinessException(ErrorCode.NOT_FOUND_ERROR, "接口不存在");
+        }
+        if (PUBLISH.getValue() != interfaceInfo.getStatus()) {
+            throw new BusinessException(ErrorCode.OPERATION_ERROR, "接口不可用");
+        }
+        return interfaceInfo;
     }
 }
 

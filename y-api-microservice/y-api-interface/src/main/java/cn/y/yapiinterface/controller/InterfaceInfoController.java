@@ -34,9 +34,6 @@ import javax.servlet.http.HttpServletRequest;
 @Slf4j
 public class InterfaceInfoController {
 
-    @DubboReference
-    private InnerUserService innerUserService;
-
     @Resource
     private InterfaceInfoService interfaceInfoService;
 

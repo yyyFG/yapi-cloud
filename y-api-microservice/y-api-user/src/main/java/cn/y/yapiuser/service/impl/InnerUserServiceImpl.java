@@ -40,7 +40,8 @@ public class InnerUserServiceImpl implements InnerUserService {
     @Resource
     private UserService userService;
 
-
-
-
+    @Override
+    public User getById(Long userId) {
+        return userService.getById(userId);
+    }
 }

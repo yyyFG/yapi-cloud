@@ -14,6 +14,7 @@ import cn.y.yapi.model.entity.InterfaceInfo;
 import cn.y.yapi.model.entity.User;
 import cn.y.yapi.model.entity.UserInterface;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.IService;
 import org.springframework.web.bind.annotation.RequestBody;
 
@@ -27,7 +28,7 @@ public interface UserInterfaceService extends IService<UserInterface> {
      * @param userInterfaceAddRequest
      * @return
      */
-    Boolean addUserInterface(UserInterfaceAddRequest userInterfaceAddRequest, User loginUser);
+    Boolean addUserInterface(UserInterfaceAddRequest userInterfaceAddRequest);
 
 
     /**
@@ -35,15 +36,14 @@ public interface UserInterfaceService extends IService<UserInterface> {
      * @param userInterfaceUpdateRequest
      * @return
      */
-    Boolean updateUserInterface(UserInterfaceUpdateRequest userInterfaceUpdateRequest, User loginUser);
+    Boolean updateUserInterface(UserInterfaceUpdateRequest userInterfaceUpdateRequest);
 
     /**
      * 删除接口
      * @param deleteRequest
-     * @param loginUser
      * @return
      */
-    Boolean deleteUserInterface(DeleteRequest deleteRequest, User loginUser);
+    Boolean deleteUserInterface(DeleteRequest deleteRequest);
 
 
     /**
@@ -52,25 +52,15 @@ public interface UserInterfaceService extends IService<UserInterface> {
      * @param loginUser
      * @return
      */
-    String applyInterface(UserInterfaceApplyRequest userInterfaceApplyRequest, User loginUser);
-
-
-    /**
-     * 获取用户接口调用关系信息
-     * @param userInterfaceQueryRequest
-     * @param loginUser
-     * @return
-     */
-    InterfaceInfo getUserInterface(UserInterfaceQueryRequest userInterfaceQueryRequest, User loginUser);
+    Boolean applyInterface(UserInterfaceApplyRequest userInterfaceApplyRequest, User loginUser);
 
 
     /**
      * 获取查询条件
-     *
      * @param userInterfaceQueryRequest
      * @return
      */
-    QueryWrapper<InterfaceInfo> getQueryWrapper(UserInterfaceQueryRequest userInterfaceQueryRequest);
+    QueryWrapper<UserInterface> getQueryWrapper(UserInterfaceQueryRequest userInterfaceQueryRequest);
 
 
     /**

@@ -9,9 +9,8 @@ import cn.y.yapi.model.dto.userinterface.UserInterfaceAddRequest;
 import cn.y.yapi.model.dto.userinterface.UserInterfaceApplyRequest;
 import cn.y.yapi.model.dto.userinterface.UserInterfaceQueryRequest;
 import cn.y.yapi.model.dto.userinterface.UserInterfaceUpdateRequest;
-import cn.y.yapi.model.entity.InterfaceInfo;
 import cn.y.yapi.model.entity.User;
-import cn.y.yapi.service.InterfaceInfoService;
+import cn.y.yapi.model.entity.UserInterface;
 import cn.y.yapi.service.UserInterfaceService;
 import cn.y.yapi.service.UserService;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
@@ -51,10 +50,9 @@ public class UserInterfaceController {
         if (userInterfaceAddRequest == null) {
             throw new BusinessException(ErrorCode.PARAMS_ERROR);
         }
-        User loginUser = userService.getLoginUser(request);
-        Boolean result = userInterfaceService.addUserInterface(userInterfaceAddRequest, loginUser);
+        Boolean result = userInterfaceService.addUserInterface(userInterfaceAddRequest);
         if (!result) {
-            throw new BusinessException(ErrorCode.SYSTEM_ERROR, "新增接口失败");
+            throw new BusinessException(ErrorCode.SYSTEM_ERROR, "新增用户接口调用信息失败");
         }
         return ResultUtils.success(true);
     }
@@ -72,10 +70,9 @@ public class UserInterfaceController {
         if (userInterfaceUpdateRequest == null || userInterfaceUpdateRequest.getId() <= 0) {
             throw new BusinessException(ErrorCode.PARAMS_ERROR);
         }
-        User loginUser = userService.getLoginUser(request);
-        Boolean result = userInterfaceService.updateUserInterface(userInterfaceUpdateRequest, loginUser);
+        Boolean result = userInterfaceService.updateUserInterface(userInterfaceUpdateRequest);
         if (!result) {
-            throw new BusinessException(ErrorCode.SYSTEM_ERROR, "更新接口失败");
+            throw new BusinessException(ErrorCode.SYSTEM_ERROR, "更新用户接口调用信息失败");
         }
         return ResultUtils.success(true);
     }
@@ -92,11 +89,10 @@ public class UserInterfaceController {
         if (deleteRequest == null || deleteRequest.getId() <= 0) {
             throw new BusinessException(ErrorCode.PARAMS_ERROR);
         }
-        User loginUser = userService.getLoginUser(request);
-//        Boolean result = userInterfaceService.deleteInterface(deleteRequest, loginUser);
-//        if (!result) {
-//            throw new BusinessException(ErrorCode.SYSTEM_ERROR, "删除接口失败");
-//        }
+        Boolean result = userInterfaceService.deleteUserInterface(deleteRequest);
+        if (!result) {
+            throw new BusinessException(ErrorCode.SYSTEM_ERROR, "删除用户接口调用信息失败");
+        }
         return ResultUtils.success(true);
     }
 
@@ -106,33 +102,36 @@ public class UserInterfaceController {
      * @param request
      * @return
      */
-//    @PostMapping("/get")
-//    public BaseResponse<InterfaceInfo> getUserInterface(@RequestBody UserInterfaceQueryRequest userInterfaceQueryRequest,
-//                                                       HttpServletRequest request) {
-//        if (userInterfaceQueryRequest == null || userInterfaceQueryRequest.getId() <= 0) {
-//            throw new BusinessException(ErrorCode.PARAMS_ERROR);
-//        }
-//        User loginUser = userService.getLoginUser(request);
-//
-//
-//        return ResultUtils.success(interfaceInfoPage);
-//    }
+    @PostMapping("/list/page")
+    public BaseResponse<Page<UserInterface>> listInterfaceByPage(@RequestBody UserInterfaceQueryRequest userInterfaceQueryRequest,
+                                                       HttpServletRequest request) {
+        if (userInterfaceQueryRequest == null || userInterfaceQueryRequest.getId() <= 0) {
+            throw new BusinessException(ErrorCode.PARAMS_ERROR);
+        }
+        // 判断用户是否登录
+        User loginUser = userService.getLoginUser(request);
+        int current = userInterfaceQueryRequest.getCurrent();
+        int size = userInterfaceQueryRequest.getPageSize();
+        userInterfaceQueryRequest.setUserId(loginUser.getId());
+        Page<UserInterface> interfaceInfoPage = userInterfaceService.page(new Page<>(current, size),
+                userInterfaceService.getQueryWrapper(userInterfaceQueryRequest));
+        return ResultUtils.success(interfaceInfoPage);
+    }
 
     /**
      * 分页获取用户接口调用关系列表（管理员）
      * @param userInterfaceQueryRequest
      * @return
      */
-//    @PostMapping("/list/page/admin")
-//    @AuthCheck(mustRole = UserConstant.ADMIN_ROLE)
-//    public BaseResponse<Page<InterfaceInfo>> listInterfaceByPageByAdmin(@RequestBody UserInterfaceQueryRequest userInterfaceQueryRequest) {
-//        int current = userInterfaceQueryRequest.getCurrent();
-//        int size = userInterfaceQueryRequest.getPageSize();
-//        Page<InterfaceInfo> interfaceInfoPage = userInterfaceService.page(new Page<>(current, size),
-//                userInterfaceService.getQueryWrapper(userInterfaceQueryRequest));
-//
-//        return ResultUtils.success(interfaceInfoPage);
-//    }
+    @PostMapping("/list/page/admin")
+    @AuthCheck(mustRole = UserConstant.ADMIN_ROLE)
+    public BaseResponse<Page<UserInterface>> listInterfaceByPageByAdmin(@RequestBody UserInterfaceQueryRequest userInterfaceQueryRequest) {
+        int current = userInterfaceQueryRequest.getCurrent();
+        int size = userInterfaceQueryRequest.getPageSize();
+        Page<UserInterface> interfaceInfoPage = userInterfaceService.page(new Page<>(current, size),
+                userInterfaceService.getQueryWrapper(userInterfaceQueryRequest));
+        return ResultUtils.success(interfaceInfoPage);
+    }
 
     /**
      * 申请调用接口
@@ -141,15 +140,17 @@ public class UserInterfaceController {
      * @return
      */
     @PostMapping("/apply")
-    public BaseResponse<String> applyInterface(@RequestBody UserInterfaceApplyRequest userInterfaceApplyRequest,
+    public BaseResponse<Boolean> applyInterface(@RequestBody UserInterfaceApplyRequest userInterfaceApplyRequest,
                                                   HttpServletRequest request) {
         if (userInterfaceApplyRequest == null) {
             throw new BusinessException(ErrorCode.PARAMS_ERROR);
         }
         // 判断用户是否登录
         User loginUser = userService.getLoginUser(request);
-        String result = userInterfaceService.applyInterface(userInterfaceApplyRequest, loginUser);
-
-        return ResultUtils.success(result);
+        Boolean result = userInterfaceService.applyInterface(userInterfaceApplyRequest, loginUser);
+        if (!result) {
+            throw new BusinessException(ErrorCode.SYSTEM_ERROR, "申请接口失败");
+        }
+        return ResultUtils.success(true);
     }
 }

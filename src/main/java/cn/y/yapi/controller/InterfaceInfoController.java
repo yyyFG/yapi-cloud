@@ -45,9 +45,6 @@ public class InterfaceInfoController {
     @Resource
     private InterfaceInfoService interfaceInfoService;
 
-    @Resource
-    private UserInterfaceService userInterfaceService;
-
     /**
      * 增加接口
      * @param interfaceInfoAddRequest
@@ -114,7 +111,7 @@ public class InterfaceInfoController {
      * @return
      */
     @PostMapping("/list/page")
-    public BaseResponse<Page<InterfaceInfo>> listInterfaceByPage(@RequestBody InterfaceInfoQueryRequest interfaceInfoQueryRequest,
+    public BaseResponse<Page<InterfaceInfo>> listUserInterfaceByPage(@RequestBody InterfaceInfoQueryRequest interfaceInfoQueryRequest,
                                                        HttpServletRequest request) {
         if (interfaceInfoQueryRequest == null || interfaceInfoQueryRequest.getId() <= 0) {
             throw new BusinessException(ErrorCode.PARAMS_ERROR);
@@ -122,6 +119,7 @@ public class InterfaceInfoController {
         User loginUser = userService.getLoginUser(request);
         int current = interfaceInfoQueryRequest.getCurrent();
         int size = interfaceInfoQueryRequest.getPageSize();
+        interfaceInfoQueryRequest.setUserId(loginUser.getId());
         // 限制爬虫
         ThrowUtils.throwIf(size > 20, ErrorCode.PARAMS_ERROR);
         Page<InterfaceInfo> interfaceInfoPage = interfaceInfoService.page(new Page<>(current, size),
@@ -137,7 +135,7 @@ public class InterfaceInfoController {
      */
     @PostMapping("/list/page/admin")
     @AuthCheck(mustRole = UserConstant.ADMIN_ROLE)
-    public BaseResponse<Page<InterfaceInfo>> listInterfaceByPageByAdmin(@RequestBody InterfaceInfoQueryRequest interfaceInfoQueryRequest) {
+    public BaseResponse<Page<InterfaceInfo>> listUserInterfaceByPageByAdmin(@RequestBody InterfaceInfoQueryRequest interfaceInfoQueryRequest) {
         int current = interfaceInfoQueryRequest.getCurrent();
         int size = interfaceInfoQueryRequest.getPageSize();
         Page<InterfaceInfo> interfaceInfoPage = interfaceInfoService.page(new Page<>(current, size),

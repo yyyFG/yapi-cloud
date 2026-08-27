@@ -34,14 +34,4 @@ public class UserInterfaceAddRequest implements Serializable {
      */
     private Integer leftNum;
 
-    /**
-     * 判断是否可以调用接口：0-正常，1-禁用
-     */
-    private Integer status;
-
-    /**
-     * 创建时间
-     */
-    private Date createTime;
-
 }

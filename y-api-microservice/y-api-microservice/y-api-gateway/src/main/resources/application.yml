@@ -1,0 +1,68 @@
+spring:
+  application:
+    name: y-api-gateway
+  config:
+    import:
+      # optional: Nacos 上没有这份配置/连不上时也不影响启动,本地 yml 照常生效
+      - optional:nacos:${spring.application.name}.yml
+  cloud:
+    gateway:
+      routes:
+        - id: y-api-user
+          uri: lb://y-api-user
+          predicates:
+            - Path=/user/**
+        - id: y-api-interface
+          uri: lb://y-api-interface
+          predicates:
+            - Path=/interfaceInfo/**
+        - id: y-api-userinterface
+          uri: lb://y-api-userinterface
+          predicates:
+            - Path=/userInterface/**
+    nacos:
+      discovery:
+        server-addr: 127.0.0.1:8848
+        username: nacos
+        password: nacos
+      config:
+        server-addr: 127.0.0.1:8848
+        username: nacos
+        password: nacos
+  main:
+    web-application-type: reactive
+logging:
+  level:
+    org:
+      springframework:
+        cloud:
+          gateway: trace
+server:
+  port: 18098
+knife4j:
+  gateway:
+    enabled: true
+    strategy: discover  # 服务发现模式
+    discover:
+      enabled: true    # 启动服务发现
+      version: swagger2
+# 以下配置指定了应用的名称、使用的协议（Dubbo）、注册中心的类型（Nacos）和地址
+dubbo:
+  registry:
+    address: nacos://127.0.0.1:8848
+    parameters:
+      username: nacos
+      password: nacos
+    register-mode: instance
+  application:
+    name: dubbo-y-api-gateway
+    qos-enable: true
+    qos-port: 0 # 设置为 0，系统会自动找一个空闲端口
+  # 指定使用 Dubbo 协议，且端口设置为 -1，表示随机分配可用端口
+  protocol:
+    name: dubbo
+    port: -1
+  consumer:
+    timeout: 60000
+  provider:
+    timeout: 60000

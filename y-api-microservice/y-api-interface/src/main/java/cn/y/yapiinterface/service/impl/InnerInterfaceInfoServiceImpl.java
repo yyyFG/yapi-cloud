@@ -1,10 +1,17 @@
 package cn.y.yapiinterface.service.impl;
 
+import cn.hutool.core.lang.Validator;
+import cn.hutool.core.util.StrUtil;
 import cn.y.yapiclient.innerservice.InnerInterfaceInfoService;
+import cn.y.yapicommon.common.ErrorCode;
+import cn.y.yapicommon.exception.BusinessException;
 import cn.y.yapiinterface.service.InterfaceInfoService;
 import cn.y.yapimodel.entity.InterfaceInfo;
+import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import org.apache.dubbo.config.annotation.DubboService;
 import javax.annotation.Resource;
+
+import static cn.y.yapimodel.enums.InterfaceStatusEnum.PUBLISH;
 
 
 /**
@@ -19,6 +26,17 @@ public class InnerInterfaceInfoServiceImpl implements InnerInterfaceInfoService 
     @Override
     public InterfaceInfo getById(Long interfaceId) {
         return interfaceInfoService.getById(interfaceId);
+    }
+
+    /**
+     * 获取接口
+     * @param url
+     * @param method
+     * @return
+     */
+    @Override
+    public InterfaceInfo getInterfaceInfo(String url, String method) {
+        return interfaceInfoService.getInterfaceInfo(url, method);
     }
 }
 

@@ -63,6 +63,14 @@ public interface InterfaceInfoService extends IService<InterfaceInfo> {
     String invokeInterface(InterfaceInfoInvokeRequest interfaceInfoInvokeRequest, User loginUser);
 
     /**
+     * 获取接口
+     * @param url
+     * @param method
+     * @return
+     */
+    InterfaceInfo getInterfaceInfo(String url, String method);
+
+    /**
      * 获取查询条件
      *
      * @param interfaceInfoQueryRequest

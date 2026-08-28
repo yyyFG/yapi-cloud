@@ -3,6 +3,7 @@ package cn.y.yapiinterface.service.impl;
 import cn.hutool.core.bean.BeanUtil;
 import cn.hutool.core.lang.Validator;
 import cn.hutool.core.util.StrUtil;
+import cn.y.yapiclient.innerservice.InnerUserInterfaceService;
 import cn.y.yapicommon.common.DeleteRequest;
 import cn.y.yapicommon.common.ErrorCode;
 import cn.y.yapicommon.common.IdRequest;
@@ -18,11 +19,13 @@ import cn.y.yapimodel.entity.User;
 import cn.y.yapiinterface.service.InterfaceInfoService;
 import cn.y.yapicommon.utils.SqlUtils;
 import cn.y.yapiclientsdk.client.YApiClient;
+import cn.y.yapimodel.entity.UserInterface;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.UpdateWrapper;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
+import org.apache.dubbo.config.annotation.DubboReference;
 import org.springframework.stereotype.Service;
 
 import static cn.y.yapicommon.constant.UserConstant.ADMIN_ROLE;
@@ -35,6 +38,10 @@ import static cn.y.yapimodel.enums.InterfaceStatusEnum.*;
 @Slf4j
 public class InterfaceInfoServiceImpl extends ServiceImpl<InterfaceInfoMapper, InterfaceInfo>
     implements InterfaceInfoService{
+
+
+    @DubboReference
+    private InnerUserInterfaceService innerUserInterfaceService;
 
     /**
      * 新增接口
@@ -237,6 +244,14 @@ public class InterfaceInfoServiceImpl extends ServiceImpl<InterfaceInfoMapper, I
         if (PUBLISH.getValue() != status) {
             throw new BusinessException(ErrorCode.OPERATION_ERROR, "接口已关闭");
         }
+        // 判断用户是否申请过接口
+        QueryWrapper<UserInterface> userInterfaceQueryWrapper = new QueryWrapper<>();
+        userInterfaceQueryWrapper.eq("userId", loginUser.getId()).eq("interfaceId", interfaceInfo.getId());
+        long count = innerUserInterfaceService.count(userInterfaceQueryWrapper);
+        if (count > 0) {
+            throw new BusinessException(ErrorCode.PARAMS_ERROR, "已申请过这个接口");
+        }
+
         cn.y.yapiclientsdk.model.InterfaceInfo interfaceInfoSdk = new cn.y.yapiclientsdk.model.InterfaceInfo();
         BeanUtil.copyProperties(interfaceInfo, interfaceInfoSdk);
         interfaceInfoSdk.setRequestParams(requestParams);
@@ -248,11 +263,38 @@ public class InterfaceInfoServiceImpl extends ServiceImpl<InterfaceInfoMapper, I
             String secretKey = loginUser.getSecretKey();
             YApiClient yApiClient = new YApiClient(accessKey, secretKey);
             String result = yApiClient.invokeInterface(interfaceInfoSdk);
-            log.info("用户 {} 调用接口 {}，响应: {}", loginUser.getUserAccount(), url, result);
+            log.info("用户 {} 调用接口 {}，响应: {}", loginUser.getUserAccount(), interfaceInfo.getInterfaceName(), result);
             return result;
         } catch (Exception e) {
-            throw new BusinessException(ErrorCode.OPERATION_ERROR, e.getMessage());
+            log.error("用户 {} 调用接口 {} 失败", loginUser.getUserAccount(), interfaceInfo.getInterfaceName(), e);
+            throw new BusinessException(ErrorCode.OPERATION_ERROR, "接口调用失败");
         }
+    }
+
+    @Override
+    public InterfaceInfo getInterfaceInfo(String url, String method) {
+        if (StrUtil.isBlank(url)) {
+            throw new BusinessException(ErrorCode.PARAMS_ERROR, "接口地址不能为空");
+        }
+        if (StrUtil.isBlank(method)) {
+            throw new BusinessException(ErrorCode.PARAMS_ERROR, "接口方法类型不能为空");
+        }
+        // 校验接口方法类型是否合法
+        if (!StrUtil.equalsAnyIgnoreCase(method, "GET", "POST", "PUT", "DELETE")) {
+            throw new BusinessException(ErrorCode.PARAMS_ERROR, "接口方法类型不合法");
+        }
+        // 网关获取到的地址是不完整的，只有一部分 url 路径
+        QueryWrapper<InterfaceInfo> queryWrapper = new QueryWrapper<>();
+        queryWrapper.eq("url", url).eq("method", method.toUpperCase());
+        InterfaceInfo interfaceInfo = this.getOne(queryWrapper);
+        if (interfaceInfo == null) {
+            throw new BusinessException(ErrorCode.NOT_FOUND_ERROR, "接口不存在");
+        }
+        if (PUBLISH.getValue() != interfaceInfo.getStatus()) {
+            throw new BusinessException(ErrorCode.OPERATION_ERROR, "接口不可用");
+        }
+
+        return interfaceInfo;
     }
 
     @Override

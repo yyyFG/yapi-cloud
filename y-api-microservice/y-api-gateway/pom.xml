@@ -17,6 +17,19 @@
     </properties>
 
     <dependencies>
+
+        <dependency>
+            <groupId>cn.y</groupId>
+            <artifactId>yapi-client-sdk</artifactId>
+            <version>0.0.1</version>
+        </dependency>
+
+        <dependency>
+            <groupId>cn.y</groupId>
+            <artifactId>y-api-client</artifactId>
+            <version>1.0-SNAPSHOT</version>
+        </dependency>
+
         <dependency>
             <groupId>cn.y</groupId>
             <artifactId>y-api-common</artifactId>

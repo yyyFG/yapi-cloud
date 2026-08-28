@@ -2,6 +2,7 @@ package cn.y.yapiuser.service.impl;
 
 import cn.hutool.core.collection.CollUtil;
 import cn.hutool.core.util.RandomUtil;
+import cn.hutool.core.util.StrUtil;
 import cn.hutool.crypto.digest.DigestUtil;
 import cn.y.yapicommon.common.ErrorCode;
 import cn.y.yapicommon.constant.CommonConstant;
@@ -29,6 +30,7 @@ import java.util.List;
 import java.util.stream.Collectors;
 
 import static cn.y.yapicommon.constant.UserConstant.USER_LOGIN_STATE;
+import static cn.y.yapimodel.enums.UserRoleEnum.BAN;
 
 /**
  * 用户服务实现
@@ -239,5 +241,22 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
         queryWrapper.orderBy(SqlUtils.validSortField(sortField), sortOrder.equals(CommonConstant.SORT_ORDER_ASC),
                 sortField);
         return queryWrapper;
+    }
+
+    @Override
+    public User getInvokeUser(String accessKey) {
+        if (StrUtil.isBlank(accessKey)) {
+            throw new BusinessException(ErrorCode.PARAMS_ERROR);
+        }
+        QueryWrapper<User> queryWrapper = new QueryWrapper<>();
+        queryWrapper.eq("accessKey", accessKey);
+        User user = this.getOne(queryWrapper);
+        if (user == null) {
+            throw new BusinessException(ErrorCode.NOT_FOUND_ERROR, "用户不存在");
+        }
+        if (BAN.getValue().equals(user.getUserRole())) {
+            throw new BusinessException(ErrorCode.OPERATION_ERROR, "用户已封禁");
+        }
+        return user;
     }
 }

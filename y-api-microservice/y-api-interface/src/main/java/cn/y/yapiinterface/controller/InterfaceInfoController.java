@@ -1,7 +1,6 @@
 package cn.y.yapiinterface.controller;
 
 
-import cn.y.yapiclient.innerservice.InnerUserInterfaceService;
 import cn.y.yapiclient.innerservice.InnerUserService;
 import cn.y.yapicommon.annotation.AuthCheck;
 import cn.y.yapicommon.common.*;
@@ -17,10 +16,8 @@ import cn.y.yapimodel.entity.User;
 import cn.y.yapiinterface.service.InterfaceInfoService;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.dubbo.config.annotation.DubboReference;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import javax.annotation.Resource;
@@ -195,12 +192,6 @@ public class InterfaceInfoController {
         }
         // 判断用户是否登录
         User loginUser = InnerUserService.getLoginUser(request);
-//        userInterfaceService.applyInterface();
-//        if () {
-//            String result = interfaceInfoService.invokeInterface(interfaceInfoInvokeRequest, loginUser);
-//            userInterfaceService.updateUserInterface();
-//        }
-
         String result = interfaceInfoService.invokeInterface(interfaceInfoInvokeRequest, loginUser);
         return ResultUtils.success(result);
     }

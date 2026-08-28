@@ -13,4 +13,12 @@ public interface InnerInterfaceInfoService {
      * @return
      */
     InterfaceInfo getById(Long interfaceId);
+
+    /**
+     * 根据 url 和 请求方法类型 获取内部接口
+     * @param url
+     * @param method
+     * @return
+     */
+    InterfaceInfo getInterfaceInfo(String url, String method);
 }

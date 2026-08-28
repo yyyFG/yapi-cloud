@@ -13,6 +13,8 @@ import cn.y.yapi.model.dto.interfaceInfo.InterfaceInfoInvokeRequest;
 import cn.y.yapi.model.dto.interfaceInfo.InterfaceInfoQueryRequest;
 import cn.y.yapi.model.dto.interfaceInfo.InterfaceInfoUpdateRequest;
 import cn.y.yapi.model.entity.User;
+import cn.y.yapi.model.entity.UserInterface;
+import cn.y.yapi.service.UserInterfaceService;
 import cn.y.yapi.utils.SqlUtils;
 import cn.y.yapiclientsdk.client.YApiClient;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
@@ -37,6 +39,9 @@ import static cn.y.yapi.model.enums.InterfaceStatusEnum.*;
 @Slf4j
 public class InterfaceInfoServiceImpl extends ServiceImpl<InterfaceInfoMapper, InterfaceInfo>
     implements InterfaceInfoService{
+
+    @Resource
+    private UserInterfaceService userInterfaceService;
 
     /**
      * 新增接口
@@ -239,6 +244,13 @@ public class InterfaceInfoServiceImpl extends ServiceImpl<InterfaceInfoMapper, I
         if (PUBLISH.getValue() != status) {
             throw new BusinessException(ErrorCode.OPERATION_ERROR, "接口已关闭");
         }
+        // 判断用户是否申请过接口
+        QueryWrapper<UserInterface> userInterfaceQueryWrapper = new QueryWrapper<>();
+        userInterfaceQueryWrapper.eq("userId", loginUser.getId()).eq("interfaceId", interfaceInfo.getId());
+        long count = userInterfaceService.count(userInterfaceQueryWrapper);
+        if (count > 0) {
+            throw new BusinessException(ErrorCode.PARAMS_ERROR, "已申请过这个接口");
+        }
         cn.y.yapiclientsdk.model.InterfaceInfo interfaceInfoSdk = new cn.y.yapiclientsdk.model.InterfaceInfo();
         BeanUtil.copyProperties(interfaceInfo, interfaceInfoSdk);
         interfaceInfoSdk.setRequestParams(requestParams);
@@ -250,10 +262,11 @@ public class InterfaceInfoServiceImpl extends ServiceImpl<InterfaceInfoMapper, I
             String secretKey = loginUser.getSecretKey();
             YApiClient yApiClient = new YApiClient(accessKey, secretKey);
             String result = yApiClient.invokeInterface(interfaceInfoSdk);
-            log.info("用户 {} 调用接口 {}，响应: {}", loginUser.getUserAccount(), url, result);
+            log.info("用户 {} 调用接口 {}，响应: {}", loginUser.getUserAccount(), interfaceInfo.getInterfaceName(), result);
             return result;
         } catch (Exception e) {
-            throw new BusinessException(ErrorCode.OPERATION_ERROR, e.getMessage());
+            log.error("用户 {} 调用接口 {} 失败", loginUser.getUserAccount(), interfaceInfo.getInterfaceName(), e);
+            throw new BusinessException(ErrorCode.OPERATION_ERROR, "接口调用失败");
         }
     }
 

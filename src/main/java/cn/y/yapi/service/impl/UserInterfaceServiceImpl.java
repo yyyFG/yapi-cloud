@@ -17,6 +17,7 @@ import cn.y.yapi.service.InterfaceInfoService;
 import cn.y.yapi.service.UserService;
 import cn.y.yapi.utils.SqlUtils;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
+import com.baomidou.mybatisplus.core.conditions.update.UpdateWrapper;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import cn.y.yapi.model.entity.UserInterface;
 import cn.y.yapi.service.UserInterfaceService;
@@ -169,39 +170,36 @@ public class UserInterfaceServiceImpl extends ServiceImpl<UserInterfaceMapper, U
 
     /**
      * 统计用户调用接口
-     * @param userInterfaceQueryRequest
-     * @param loginUser
+     * @param interfaceId
+     * @param userId
      * @return
      */
     @Override
-    public Boolean invokeCount(UserInterfaceQueryRequest userInterfaceQueryRequest, User loginUser) {
-        // 先查接口存不存在
-        Long interfaceId = userInterfaceQueryRequest.getInterfaceId();
-        InterfaceInfo interfaceInfo = interfaceInfoService.getById(interfaceId);
-        if (interfaceInfo == null) {
-            throw new BusinessException(ErrorCode.NOT_FOUND_ERROR, "想要调用的接口不存在");
-        }
+    public Boolean invokeCount(long interfaceId, long userId) {
+        //接口、用户的校验已经在前面的方法调用中校验过了
         // 查数据库中有无记录
-        Long userId = userInterfaceQueryRequest.getUserId();
         QueryWrapper<UserInterface> queryWrapper = new QueryWrapper<>();
         queryWrapper.eq("interfaceId", interfaceId).eq("userId", userId);
         UserInterface userInterface = this.getOne(queryWrapper);
         if (userInterface == null) {
-            throw new BusinessException(ErrorCode.PARAMS_ERROR, "还未申请调用此接口，请先申请");
+            throw new BusinessException(ErrorCode.NOT_FOUND_ERROR, "还未申请调用此接口，请先申请");
         }
         // 判断用户是否有资格调用接口
         Integer status = userInterface.getStatus();
         Integer leftNum = userInterface.getLeftNum();
-        if (status == 1) {
-            throw new BusinessException(ErrorCode.OPERATION_ERROR, "已被禁止调用此接口");
+        if (UserInterfaceInfoConstant.USER_INTERFACE_BAN.equals(status)) {
+            throw new BusinessException(ErrorCode.NO_AUTH_ERROR, "已被禁止调用此接口");
         }
         if (leftNum <= 0) {
-            throw new BusinessException(ErrorCode.OPERATION_ERROR, "剩余调用次数不足");
+            throw new BusinessException(ErrorCode.NO_AUTH_ERROR, "剩余调用次数不足");
         }
 
-
-
-        return null;
+        // todo 后面引入 redis
+        UpdateWrapper<UserInterface> updateWrapper = new UpdateWrapper<>();
+        updateWrapper.eq("userId", userId).eq("interfaceId", interfaceId)
+                .gt("leftNum", 0)
+                .setSql("leftNum = leftNum - 1");
+        return this.update(updateWrapper);
     }
 
     /**

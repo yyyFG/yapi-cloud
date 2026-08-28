@@ -65,9 +65,9 @@ public interface UserInterfaceService extends IService<UserInterface> {
 
     /**
      * 统计用户调用接口
-     * @param userInterfaceQueryRequest
-     * @param loginUser
+     * @param interfaceId
+     * @param userId
      * @return
      */
-    Boolean invokeCount(UserInterfaceQueryRequest userInterfaceQueryRequest, User loginUser);
+    Boolean invokeCount(long interfaceId, long userId);
 }

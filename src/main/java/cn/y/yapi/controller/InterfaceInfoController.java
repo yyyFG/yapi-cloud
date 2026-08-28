@@ -204,12 +204,6 @@ public class InterfaceInfoController {
         }
         // 判断用户是否登录
         User loginUser = userService.getLoginUser(request);
-//        userInterfaceService.applyInterface();
-//        if () {
-//            String result = interfaceInfoService.invokeInterface(interfaceInfoInvokeRequest, loginUser);
-//            userInterfaceService.updateUserInterface();
-//        }
-
         String result = interfaceInfoService.invokeInterface(interfaceInfoInvokeRequest, loginUser);
         return ResultUtils.success(result);
     }

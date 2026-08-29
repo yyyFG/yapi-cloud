@@ -41,12 +41,20 @@ public interface UserInterfaceService extends IService<UserInterface> {
 
     /**
      * 申请调用接口
-     * @param userInterfaceApplyRequest
-     * @param loginUser
+     * @param userId
+     * @param interfaceId
      * @return
      */
-    Boolean applyInterface(UserInterfaceApplyRequest userInterfaceApplyRequest, User loginUser);
+    Boolean applyInterface(long userId, long interfaceId);
 
+
+    /**
+     * 判断接口是否申请
+     * @param userId
+     * @param interfaceId
+     * @return
+     */
+    long hasApplied(long userId, long interfaceId);
 
     /**
      * 获取查询条件

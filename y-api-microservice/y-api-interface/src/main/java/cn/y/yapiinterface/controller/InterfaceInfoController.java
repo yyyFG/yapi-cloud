@@ -1,6 +1,7 @@
 package cn.y.yapiinterface.controller;
 
 
+import cn.y.yapiclient.innerservice.InnerUserInterfaceService;
 import cn.y.yapiclient.innerservice.InnerUserService;
 import cn.y.yapicommon.annotation.AuthCheck;
 import cn.y.yapicommon.common.*;
@@ -11,11 +12,15 @@ import cn.y.yapimodel.dto.interfaceInfo.InterfaceInfoAddRequest;
 import cn.y.yapimodel.dto.interfaceInfo.InterfaceInfoInvokeRequest;
 import cn.y.yapimodel.dto.interfaceInfo.InterfaceInfoQueryRequest;
 import cn.y.yapimodel.dto.interfaceInfo.InterfaceInfoUpdateRequest;
+import cn.y.yapimodel.dto.userinterface.UserInterfaceAddRequest;
+import cn.y.yapimodel.dto.userinterface.UserInterfaceApplyRequest;
+import cn.y.yapimodel.dto.userinterface.UserInterfaceUpdateRequest;
 import cn.y.yapimodel.entity.InterfaceInfo;
 import cn.y.yapimodel.entity.User;
 import cn.y.yapiinterface.service.InterfaceInfoService;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.dubbo.config.annotation.DubboReference;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RestController;
@@ -194,5 +199,66 @@ public class InterfaceInfoController {
         User loginUser = InnerUserService.getLoginUser(request);
         String result = interfaceInfoService.invokeInterface(interfaceInfoInvokeRequest, loginUser);
         return ResultUtils.success(result);
+    }
+
+    /**
+     * 申请调用接口
+     * @param userInterfaceApplyRequest
+     * @param request
+     * @return
+     */
+    @PostMapping("/apply")
+    public BaseResponse<Boolean> applyInterface(@RequestBody UserInterfaceApplyRequest userInterfaceApplyRequest,
+                                                HttpServletRequest request) {
+        if (userInterfaceApplyRequest == null) {
+            throw new BusinessException(ErrorCode.PARAMS_ERROR);
+        }
+        // 判断用户是否登录
+        User loginUser = InnerUserService.getLoginUser(request);
+        Boolean result = interfaceInfoService.applyInterface(userInterfaceApplyRequest, loginUser);
+        if (!result) {
+            throw new BusinessException(ErrorCode.SYSTEM_ERROR, "申请接口失败");
+        }
+        return ResultUtils.success(true);
+    }
+
+    /**
+     * 新增用户接口调用关系
+     * @param userInterfaceAddRequest
+     * @param request
+     * @return
+     */
+    @PostMapping("/addUserInterface")
+    @AuthCheck(mustRole = UserConstant.ADMIN_ROLE)
+    public BaseResponse<Boolean> addUserInterface(@RequestBody UserInterfaceAddRequest userInterfaceAddRequest,
+                                                  HttpServletRequest request) {
+        if (userInterfaceAddRequest == null) {
+            throw new BusinessException(ErrorCode.PARAMS_ERROR);
+        }
+        Boolean result = interfaceInfoService.addUserInterface(userInterfaceAddRequest);
+        if (!result) {
+            throw new BusinessException(ErrorCode.SYSTEM_ERROR, "新增用户接口调用信息失败");
+        }
+        return ResultUtils.success(true);
+    }
+
+    /**
+     * 更新用户接口调用关系
+     * @param userInterfaceUpdateRequest
+     * @param request
+     * @return
+     */
+    @PostMapping("/updateUserInterface")
+    @AuthCheck(mustRole = UserConstant.ADMIN_ROLE)
+    public BaseResponse<Boolean> updateUserInterface(@RequestBody UserInterfaceUpdateRequest userInterfaceUpdateRequest,
+                                                     HttpServletRequest request) {
+        if (userInterfaceUpdateRequest == null || userInterfaceUpdateRequest.getId() <= 0) {
+            throw new BusinessException(ErrorCode.PARAMS_ERROR);
+        }
+        Boolean result = interfaceInfoService.updateUserInterface(userInterfaceUpdateRequest);
+        if (!result) {
+            throw new BusinessException(ErrorCode.SYSTEM_ERROR, "更新用户接口调用信息失败");
+        }
+        return ResultUtils.success(true);
     }
 }

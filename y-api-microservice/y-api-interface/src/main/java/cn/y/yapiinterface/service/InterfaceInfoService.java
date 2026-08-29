@@ -6,6 +6,9 @@ import cn.y.yapimodel.dto.interfaceInfo.InterfaceInfoAddRequest;
 import cn.y.yapimodel.dto.interfaceInfo.InterfaceInfoInvokeRequest;
 import cn.y.yapimodel.dto.interfaceInfo.InterfaceInfoQueryRequest;
 import cn.y.yapimodel.dto.interfaceInfo.InterfaceInfoUpdateRequest;
+import cn.y.yapimodel.dto.userinterface.UserInterfaceAddRequest;
+import cn.y.yapimodel.dto.userinterface.UserInterfaceApplyRequest;
+import cn.y.yapimodel.dto.userinterface.UserInterfaceUpdateRequest;
 import cn.y.yapimodel.entity.InterfaceInfo;
 import cn.y.yapimodel.entity.User;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
@@ -77,4 +80,27 @@ public interface InterfaceInfoService extends IService<InterfaceInfo> {
      * @return
      */
     QueryWrapper<InterfaceInfo> getQueryWrapper(InterfaceInfoQueryRequest interfaceInfoQueryRequest);
+
+
+    /**
+     * 申请接口(解耦)
+     * @param userInterfaceApplyRequest
+     * @param loginUser
+     * @return
+     */
+    Boolean applyInterface(UserInterfaceApplyRequest userInterfaceApplyRequest, User loginUser);
+
+    /**
+     * 新增用户接口调用（解耦）
+     * @param userInterfaceAddRequest
+     * @return
+     */
+    Boolean addUserInterface(UserInterfaceAddRequest userInterfaceAddRequest);
+
+    /**
+     * 更新用户接口调用（解耦）
+     * @param userInterfaceUpdateRequest
+     * @return
+     */
+    Boolean updateUserInterface(UserInterfaceUpdateRequest userInterfaceUpdateRequest);
 }

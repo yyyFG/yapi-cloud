@@ -8,12 +8,16 @@ import cn.y.yapicommon.common.DeleteRequest;
 import cn.y.yapicommon.common.ErrorCode;
 import cn.y.yapicommon.common.IdRequest;
 import cn.y.yapicommon.constant.CommonConstant;
+import cn.y.yapicommon.constant.UserInterfaceInfoConstant;
 import cn.y.yapicommon.exception.BusinessException;
 import cn.y.yapiinterface.mapper.InterfaceInfoMapper;
 import cn.y.yapimodel.dto.interfaceInfo.InterfaceInfoAddRequest;
 import cn.y.yapimodel.dto.interfaceInfo.InterfaceInfoInvokeRequest;
 import cn.y.yapimodel.dto.interfaceInfo.InterfaceInfoQueryRequest;
 import cn.y.yapimodel.dto.interfaceInfo.InterfaceInfoUpdateRequest;
+import cn.y.yapimodel.dto.userinterface.UserInterfaceAddRequest;
+import cn.y.yapimodel.dto.userinterface.UserInterfaceApplyRequest;
+import cn.y.yapimodel.dto.userinterface.UserInterfaceUpdateRequest;
 import cn.y.yapimodel.entity.InterfaceInfo;
 import cn.y.yapimodel.entity.User;
 import cn.y.yapiinterface.service.InterfaceInfoService;
@@ -245,9 +249,7 @@ public class InterfaceInfoServiceImpl extends ServiceImpl<InterfaceInfoMapper, I
             throw new BusinessException(ErrorCode.OPERATION_ERROR, "接口已关闭");
         }
         // 判断用户是否申请过接口
-        QueryWrapper<UserInterface> userInterfaceQueryWrapper = new QueryWrapper<>();
-        userInterfaceQueryWrapper.eq("userId", loginUser.getId()).eq("interfaceId", interfaceInfo.getId());
-        long count = innerUserInterfaceService.count(userInterfaceQueryWrapper);
+        long count = innerUserInterfaceService.hasApplied(loginUser.getId(), interfaceInfo.getId());
         if (count > 0) {
             throw new BusinessException(ErrorCode.PARAMS_ERROR, "已申请过这个接口");
         }
@@ -264,11 +266,61 @@ public class InterfaceInfoServiceImpl extends ServiceImpl<InterfaceInfoMapper, I
             YApiClient yApiClient = new YApiClient(accessKey, secretKey);
             String result = yApiClient.invokeInterface(interfaceInfoSdk);
             log.info("用户 {} 调用接口 {}，响应: {}", loginUser.getUserAccount(), interfaceInfo.getInterfaceName(), result);
+            // 如果接口返回值是空的，也当他调用成功
+            boolean b = innerUserInterfaceService.invokeCount(interfaceInfo.getId(), loginUser.getId());
+            if (!b) {
+                throw new BusinessException(ErrorCode.SYSTEM_ERROR, "扣除接口调用次数失败");
+            }
             return result;
         } catch (Exception e) {
             log.error("用户 {} 调用接口 {} 失败", loginUser.getUserAccount(), interfaceInfo.getInterfaceName(), e);
             throw new BusinessException(ErrorCode.OPERATION_ERROR, "接口调用失败");
         }
+    }
+
+    @Override
+    public Boolean applyInterface(UserInterfaceApplyRequest userInterfaceApplyRequest, User loginUser) {
+        Long interfaceId = userInterfaceApplyRequest.getInterfaceId();
+        validateInterface(interfaceId);
+        Long userId = loginUser.getId();
+        return innerUserInterfaceService.applyInterface(userId, interfaceId);
+    }
+
+    @Override
+    public Boolean addUserInterface(UserInterfaceAddRequest userInterfaceAddRequest) {
+        if (userInterfaceAddRequest.getUserId() == null || userInterfaceAddRequest.getInterfaceId() == null) {
+            throw new BusinessException(ErrorCode.PARAMS_ERROR, "参数不能为空");
+        }
+        if (userInterfaceAddRequest.getTotalNum() == null || userInterfaceAddRequest.getTotalNum() < 0 ){
+            throw new BusinessException(ErrorCode.PARAMS_ERROR, "调用次数不合法");
+        }
+        if (userInterfaceAddRequest.getLeftNum() != null && userInterfaceAddRequest.getLeftNum() > userInterfaceAddRequest.getTotalNum()) {
+            throw new BusinessException(ErrorCode.PARAMS_ERROR, "调用次数不合法");
+        } else if (userInterfaceAddRequest.getLeftNum() == null){
+            // 未指定剩余次数时，默认等于总次数
+            userInterfaceAddRequest.setLeftNum(userInterfaceAddRequest.getTotalNum());
+        }
+        validateInterface(userInterfaceAddRequest.getInterfaceId());
+        return innerUserInterfaceService.addUserInterface(userInterfaceAddRequest);
+    }
+
+    @Override
+    public Boolean updateUserInterface(UserInterfaceUpdateRequest userInterfaceUpdateRequest) {
+        if (userInterfaceUpdateRequest.getUserId() == null || userInterfaceUpdateRequest.getInterfaceId() == null) {
+            throw new BusinessException(ErrorCode.PARAMS_ERROR, "参数不能为空");
+        }
+        if (userInterfaceUpdateRequest.getLeftNum() != null && userInterfaceUpdateRequest.getTotalNum() != null
+                && userInterfaceUpdateRequest.getLeftNum() > userInterfaceUpdateRequest.getTotalNum()) {
+            throw new BusinessException(ErrorCode.PARAMS_ERROR, "调用次数不合法");
+        }
+        // 校验传入的状态值合法（0-正常，1-禁用）
+        Integer newStatus = userInterfaceUpdateRequest.getStatus();
+        if (newStatus != null && !UserInterfaceInfoConstant.USER_INTERFACE_OK.equals(newStatus)
+                && !UserInterfaceInfoConstant.USER_INTERFACE_BAN.equals(newStatus)) {
+            throw new BusinessException(ErrorCode.PARAMS_ERROR, "接口调用状态不合法");
+        }
+        validateInterface(userInterfaceUpdateRequest.getInterfaceId());
+        return innerUserInterfaceService.updateUserInterface(userInterfaceUpdateRequest);
     }
 
     @Override
@@ -329,6 +381,20 @@ public class InterfaceInfoServiceImpl extends ServiceImpl<InterfaceInfoMapper, I
         queryWrapper.orderBy(SqlUtils.validSortField(sortField), CommonConstant.SORT_ORDER_ASC.equals(sortOrder),
                 sortField);
         return queryWrapper;
+    }
+
+    /**
+     * 校验接口存在且已发布
+     */
+    private InterfaceInfo validateInterface(Long interfaceId) {
+        InterfaceInfo interfaceInfo = this.getById(interfaceId);
+        if (interfaceInfo == null) {
+            throw new BusinessException(ErrorCode.NOT_FOUND_ERROR, "接口不存在");
+        }
+        if (PUBLISH.getValue() != interfaceInfo.getStatus()) {
+            throw new BusinessException(ErrorCode.OPERATION_ERROR, "接口不可用");
+        }
+        return interfaceInfo;
     }
 }
 

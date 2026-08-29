@@ -263,6 +263,11 @@ public class InterfaceInfoServiceImpl extends ServiceImpl<InterfaceInfoMapper, I
             YApiClient yApiClient = new YApiClient(accessKey, secretKey);
             String result = yApiClient.invokeInterface(interfaceInfoSdk);
             log.info("用户 {} 调用接口 {}，响应: {}", loginUser.getUserAccount(), interfaceInfo.getInterfaceName(), result);
+            // 如果接口返回值是空的，也当他调用成功
+            Boolean b = userInterfaceService.invokeCount(interfaceInfo.getId(), loginUser.getId());
+            if (!b) {
+                throw new BusinessException(ErrorCode.SYSTEM_ERROR, "扣除接口调用次数失败");
+            }
             return result;
         } catch (Exception e) {
             log.error("用户 {} 调用接口 {} 失败", loginUser.getUserAccount(), interfaceInfo.getInterfaceName(), e);

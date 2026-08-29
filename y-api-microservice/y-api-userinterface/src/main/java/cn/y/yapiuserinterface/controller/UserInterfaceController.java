@@ -33,46 +33,6 @@ public class UserInterfaceController {
     private UserInterfaceService userInterfaceService;
 
     /**
-     * 新增用户接口调用关系
-     * @param userInterfaceAddRequest
-     * @param request
-     * @return
-     */
-    @PostMapping("/add")
-    @AuthCheck(mustRole = UserConstant.ADMIN_ROLE)
-    public BaseResponse<Boolean> addUserInterface(@RequestBody UserInterfaceAddRequest userInterfaceAddRequest,
-                                                  HttpServletRequest request) {
-        if (userInterfaceAddRequest == null) {
-            throw new BusinessException(ErrorCode.PARAMS_ERROR);
-        }
-        Boolean result = userInterfaceService.addUserInterface(userInterfaceAddRequest);
-        if (!result) {
-            throw new BusinessException(ErrorCode.SYSTEM_ERROR, "新增用户接口调用信息失败");
-        }
-        return ResultUtils.success(true);
-    }
-
-    /**
-     * 更新用户接口调用关系
-     * @param userInterfaceUpdateRequest
-     * @param request
-     * @return
-     */
-    @PostMapping("/update")
-    @AuthCheck(mustRole = UserConstant.ADMIN_ROLE)
-    public BaseResponse<Boolean> updateUserInterface(@RequestBody UserInterfaceUpdateRequest userInterfaceUpdateRequest,
-                                                     HttpServletRequest request) {
-        if (userInterfaceUpdateRequest == null || userInterfaceUpdateRequest.getId() <= 0) {
-            throw new BusinessException(ErrorCode.PARAMS_ERROR);
-        }
-        Boolean result = userInterfaceService.updateUserInterface(userInterfaceUpdateRequest);
-        if (!result) {
-            throw new BusinessException(ErrorCode.SYSTEM_ERROR, "更新用户接口调用信息失败");
-        }
-        return ResultUtils.success(true);
-    }
-
-    /**
      * 删除用户接口调用关系
      * @param deleteRequest
      * @param request
@@ -128,24 +88,4 @@ public class UserInterfaceController {
         return ResultUtils.success(interfaceInfoPage);
     }
 
-    /**
-     * 申请调用接口
-     * @param userInterfaceApplyRequest
-     * @param request
-     * @return
-     */
-    @PostMapping("/apply")
-    public BaseResponse<Boolean> applyInterface(@RequestBody UserInterfaceApplyRequest userInterfaceApplyRequest,
-                                                HttpServletRequest request) {
-        if (userInterfaceApplyRequest == null) {
-            throw new BusinessException(ErrorCode.PARAMS_ERROR);
-        }
-        // 判断用户是否登录
-        User loginUser = InnerUserService.getLoginUser(request);
-        Boolean result = userInterfaceService.applyInterface(userInterfaceApplyRequest, loginUser);
-        if (!result) {
-            throw new BusinessException(ErrorCode.SYSTEM_ERROR, "申请接口失败");
-        }
-        return ResultUtils.success(true);
-    }
 }

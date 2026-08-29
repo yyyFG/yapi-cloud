@@ -22,6 +22,7 @@ import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import cn.y.yapi.model.entity.UserInterface;
 import cn.y.yapi.service.UserInterfaceService;
 import cn.y.yapi.mapper.UserInterfaceMapper;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 
 import javax.annotation.Resource;
@@ -39,6 +40,7 @@ public class UserInterfaceServiceImpl extends ServiceImpl<UserInterfaceMapper, U
     implements UserInterfaceService{
 
     @Resource
+    @Lazy
     private InterfaceInfoService interfaceInfoService;
 
     @Resource

@@ -52,14 +52,17 @@ public class CustomGlobalFilter implements GlobalFilter, Ordered {
 
     private static final List<String> IP_WHITE_LIST = Arrays.asList("127.0.0.1");
 
-    private static final List<String> WITHE_PATH_LIST = Arrays.asList(
+    private static final AntPathMatcher ANT_PATH_MATCHER = new AntPathMatcher();
+
+    /** knife4j 文档相关路径，放行不经鉴权 */
+    private static final List<String> DOC_WHITE_LIST = Arrays.asList(
             "/interfaceInfo/v2/api-docs",
             "/user/v2/api-docs",
-            "/userInterface/v2/api-docs"
+            "/userInterface/v2/api-docs",
+            "/interfaceInfo/**",
+            "/user/**",
+            "/userInterface/**"
     );
-
-    private static final AntPathMatcher PATH_MATCHER = new AntPathMatcher();
-
 
     @Override
     public Mono<Void> filter(ServerWebExchange exchange, GatewayFilterChain chain) {
@@ -76,9 +79,9 @@ public class CustomGlobalFilter implements GlobalFilter, Ordered {
         log.info("请求来源地址：" + sourceAddress);
         // 远端地址：发起请求的客户端的 IP:端口（比如浏览器/调用方的 192.168.1.100:54321）
         log.info("请求来源地址：" + request.getRemoteAddress());
-        boolean isWhite = WITHE_PATH_LIST.stream()
-                .anyMatch(p -> PATH_MATCHER.match(p, path));
-        if (isWhite) {
+
+        // IP 白名单判断之后紧接着加：
+        if (DOC_WHITE_LIST.stream().anyMatch(pattern -> ANT_PATH_MATCHER.match(pattern, path))) {
             return chain.filter(exchange);
         }
 

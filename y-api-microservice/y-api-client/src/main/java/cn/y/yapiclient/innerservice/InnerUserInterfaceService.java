@@ -2,9 +2,6 @@ package cn.y.yapiclient.innerservice;
 
 import cn.y.yapimodel.dto.userinterface.UserInterfaceAddRequest;
 import cn.y.yapimodel.dto.userinterface.UserInterfaceUpdateRequest;
-import cn.y.yapimodel.entity.User;
-import cn.y.yapimodel.entity.UserInterface;
-import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 
 /**
  * 用户接口调用服务内部调用

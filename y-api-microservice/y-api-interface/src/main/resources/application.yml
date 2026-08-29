@@ -16,6 +16,8 @@ spring:
         server-addr: 127.0.0.1:8848
         username: nacos
         password: nacos
+        metadata:
+          context-path: /interfaceInfo
   # mysql
   datasource:
     driver-class-name: com.mysql.cj.jdbc.Driver

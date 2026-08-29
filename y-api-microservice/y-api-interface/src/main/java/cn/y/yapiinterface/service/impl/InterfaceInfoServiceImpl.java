@@ -250,8 +250,8 @@ public class InterfaceInfoServiceImpl extends ServiceImpl<InterfaceInfoMapper, I
         }
         // 判断用户是否申请过接口
         long count = innerUserInterfaceService.hasApplied(loginUser.getId(), interfaceInfo.getId());
-        if (count > 0) {
-            throw new BusinessException(ErrorCode.PARAMS_ERROR, "已申请过这个接口");
+        if (count == 0) {
+            throw new BusinessException(ErrorCode.PARAMS_ERROR, "用户还未申请这个接口");
         }
 
         cn.y.yapiclientsdk.model.InterfaceInfo interfaceInfoSdk = new cn.y.yapiclientsdk.model.InterfaceInfo();

@@ -1,6 +1,7 @@
 package cn.y.yapigateway;
 
 import cn.hutool.core.text.AntPathMatcher;
+import cn.hutool.core.util.StrUtil;
 import cn.y.yapiclient.innerservice.InnerInterfaceInfoService;
 import cn.y.yapiclient.innerservice.InnerUserInterfaceService;
 import cn.y.yapiclient.innerservice.InnerUserService;
@@ -17,6 +18,7 @@ import org.springframework.core.Ordered;
 import org.springframework.core.io.buffer.DataBuffer;
 import org.springframework.core.io.buffer.DataBufferFactory;
 import org.springframework.core.io.buffer.DataBufferUtils;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.server.reactive.ServerHttpRequest;
@@ -27,7 +29,9 @@ import org.springframework.web.server.ServerWebExchange;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
+import javax.annotation.Resource;
 import java.io.UnsupportedEncodingException;
+import java.net.URI;
 import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
@@ -50,19 +54,29 @@ public class CustomGlobalFilter implements GlobalFilter, Ordered {
     @DubboReference
     private InnerUserService innerUserService;
 
+    @Resource
+    private StringRedisTemplate stringRedisTemplate;
+
+
     private static final List<String> IP_WHITE_LIST = Arrays.asList("127.0.0.1");
 
     private static final AntPathMatcher ANT_PATH_MATCHER = new AntPathMatcher();
 
+    /** 管理端业务路径：放行，权限由各服务 @AuthCheck 负责 */
+    private static final List<String> ADMIN_WHITE_LIST = Arrays.asList(
+            "/user/**", "/interfaceInfo/**", "/userInterface/**");
+
     /** knife4j 文档相关路径，放行不经鉴权 */
     private static final List<String> DOC_WHITE_LIST = Arrays.asList(
-            "/interfaceInfo/v2/api-docs",
-            "/user/v2/api-docs",
-            "/userInterface/v2/api-docs",
-            "/interfaceInfo/**",
-            "/user/**",
-            "/userInterface/**"
+            "/interfaceInfo/v2/api-docs/**", "/user/v2/api-docs/**", "/userInterface/v2/api-docs/**",
+            "/doc.html", "/webjars/**",
+            "/swagger-resources/**", "/favicon.ico"
     );
+
+    // 判断路径是否在白名单里
+    private boolean isInWhiteList(String path, List<String> patterns) {
+        return patterns.stream().anyMatch(p -> ANT_PATH_MATCHER.match(p, path));
+    }
 
     @Override
     public Mono<Void> filter(ServerWebExchange exchange, GatewayFilterChain chain) {
@@ -80,8 +94,8 @@ public class CustomGlobalFilter implements GlobalFilter, Ordered {
         // 远端地址：发起请求的客户端的 IP:端口（比如浏览器/调用方的 192.168.1.100:54321）
         log.info("请求来源地址：" + request.getRemoteAddress());
 
-        // IP 白名单判断之后紧接着加：
-        if (DOC_WHITE_LIST.stream().anyMatch(pattern -> ANT_PATH_MATCHER.match(pattern, path))) {
+        // 文档路径和管理端路径直接放行，不走 AK/SK 鉴权
+        if (isInWhiteList(path, DOC_WHITE_LIST) || isInWhiteList(path, ADMIN_WHITE_LIST)) {
             return chain.filter(exchange);
         }
 
@@ -124,9 +138,11 @@ public class CustomGlobalFilter implements GlobalFilter, Ordered {
         }
 
         // todo 3. 校验随机数，随机数可以用 hashMap 或 redis 存储
-        if (Long.parseLong(nonce) > 10000) {
+        // 3. 防重放：nonce 只能用一次，Redis SETNX 原子判重
+        if (StrUtil.isBlank(nonce)) {
             return handleNoAuth(response);
         }
+
 
         // todo 4. 校验时间戳和当前时间的差距，和当前时间不能超过五分钟
         long currentTime = System.currentTimeMillis() / 1000;
@@ -154,6 +170,17 @@ public class CustomGlobalFilter implements GlobalFilter, Ordered {
         try {
             // 调用内部服务，获取接口信息
             interfaceInfo = innerInterfaceInfoService.getInterfaceInfo(path, method);
+            // todo 6. 请求转发，调用接口
+            String originalQuery = request.getURI().getRawQuery();
+            String target = interfaceInfo.getUrl();
+            if (StrUtil.isNotBlank(originalQuery)) {
+                // url 本身可能已带 query 参数，此时用 & 连接
+                target += (target.contains("?") ? "&" : "?") + originalQuery;
+            }
+            ServerHttpRequest newRequest = request.mutate()
+                    .uri(URI.create(target))
+                    .build();
+            return handleResponse(exchange.mutate().request(newRequest).build(), chain, interfaceInfo.getId(), invokeUser.getId());
         } catch (BusinessException e) {
             // 如果未获取到接口信息，返回处理未授权的响应
             return handleNoAuth(response);
@@ -162,12 +189,6 @@ public class CustomGlobalFilter implements GlobalFilter, Ordered {
             log.error("getInterfaceInfo error", e);
             return handleInvokeError(response);
         }
-
-        // todo 6. 请求转发，调用接口
-        // 调用成功之后要输入一个响应日志
-        log.info("响应：" + response.getStatusCode());
-        return handleResponse(exchange, chain, interfaceInfo.getId(), invokeUser.getId());
-//        return filter;
     }
 
     /**
@@ -183,57 +204,45 @@ public class CustomGlobalFilter implements GlobalFilter, Ordered {
             ServerHttpResponse originalResponse = exchange.getResponse();
             // 获取数据缓冲工厂
             DataBufferFactory bufferFactory = originalResponse.bufferFactory();
-            // 获取响应的状态码
-            HttpStatus statusCode = originalResponse.getStatusCode();
-
-            // 判断状态码是否为 200 OK(按道理来说,现在没有调用,是拿不到响应码的,对这个保持怀疑)
-            if(statusCode == HttpStatus.OK) {
-                // 创建一个装饰后的响应对象(开始穿装备，增强能力)
-                ServerHttpResponseDecorator decoratedResponse = new ServerHttpResponseDecorator(originalResponse) {
-                    // 重写writeWith方法，用于处理响应体的数据
-                    // 这段方法就是只要当我们的模拟接口调用完成之后,等它返回结果，
-                    // 就会调用writeWith方法,我们就能根据响应结果做一些自己的处理
-                    @Override
-                    public Mono<Void> writeWith(Publisher<? extends DataBuffer> body) {
-//                        log.info("body instanceof Flux: {}", (body instanceof Flux));
-                        // 判断响应体是否是Flux类型
-                        if (body instanceof Flux) {
-                            Flux<? extends DataBuffer> fluxBody = Flux.from(body);
-                            // 返回一个处理后的响应体
-                            // (这里就理解为它在拼接字符串,它把缓冲区的数据取出来，一点一点拼接好)
-                            return super.writeWith(fluxBody.map(dataBuffer -> {
-                                // todo 7. 调用成功，接口调用次数 + 1 invokeCount
-                                try {
-                                    // 调用内部用户接口信息服务，记录接口调用次数
-                                    innerUserInterfaceService.invokeCount(interfaceInfoId, userId);
-                                } catch (Exception e) {
-                                    log.error("invokeCount error", e);
+            ServerHttpResponseDecorator decoratedResponse = new ServerHttpResponseDecorator(originalResponse) {
+                // 重写writeWith方法，用于处理响应体的数据
+                // 这段方法就是只要当我们的模拟接口调用完成之后,等它返回结果，
+                // 就会调用writeWith方法,我们就能根据响应结果做一些自己的处理
+                @Override
+                public Mono<Void> writeWith(Publisher<? extends DataBuffer> body) {
+                    if (body instanceof Flux) {
+                        Flux<? extends DataBuffer> fluxBody = Flux.from(body);
+                        // 返回一个处理后的响应体
+                        // (这里就理解为它在拼接字符串,它把缓冲区的数据取出来，一点一点拼接好)
+                        return super.writeWith(fluxBody.map(dataBuffer -> {
+                            if (HttpStatus.OK.equals(getStatusCode())) {
+                                if (!innerUserService.isAdmin(userId)) {
+                                    // todo 7. 调用成功，接口调用次数 + 1 invokeCount
+                                    try {
+                                        // 调用内部用户接口信息服务，记录接口调用次数
+                                        innerUserInterfaceService.invokeCount(interfaceInfoId, userId);
+                                    } catch (Exception e) {
+                                        log.error("invokeCount error", e);
+                                    }
                                 }
-                                // 读取响应体的内容并转换为字节数组
-                                byte[] content = new byte[dataBuffer.readableByteCount()];
-                                dataBuffer.read(content);
-                                DataBufferUtils.release(dataBuffer);//释放掉内存
-                                // 构建日志
-                                StringBuilder sb2 = new StringBuilder(200);
-                                List<Object> rspArgs = new ArrayList<>();
-                                rspArgs.add(originalResponse.getStatusCode());
-                                String data = new String(content, StandardCharsets.UTF_8);
-                                sb2.append(data);
-                                log.info("响应结果：" + data);
-                                // 将处理后的内容重新包装成DataBuffer并返回
-                                return bufferFactory.wrap(content);
-                            }));
-                        } else {
-                            log.error("响应结果异常：{}", getStatusCode());
-                        }
-                        return super.writeWith(body);
+                            }
+                            // 读取响应体的内容并转换为字节数组
+                            byte[] content = new byte[dataBuffer.readableByteCount()];
+                            dataBuffer.read(content);
+                            DataBufferUtils.release(dataBuffer);//释放掉内存
+                            // 构建日志
+                            log.info("响应结果：{}", new String(content, StandardCharsets.UTF_8));
+                            // 将处理后的内容重新包装成DataBuffer并返回
+                            return bufferFactory.wrap(content);
+                        }));
+                    } else {
+                        log.error("响应结果异常：{}", getStatusCode());
                     }
-                };
-                // 对于200 OK的请求,将装饰后的响应对象传递给下一个过滤器链,并继续处理(设置repsonse对象为装饰过的)
-                return chain.filter(exchange.mutate().response(decoratedResponse).build());
-            }
-            // 对于非200 OK的请求，直接返回，进行降级处理
-            return chain.filter(exchange);
+                    return super.writeWith(body);
+                }
+            };
+            // 对于200 OK的请求,将装饰后的响应对象传递给下一个过滤器链,并继续处理(设置repsonse对象为装饰过的)
+            return chain.filter(exchange.mutate().response(decoratedResponse).build());
         }catch (Exception e){
             // 处理异常情况，记录错误日志
             log.error("网关处理响应异常" + e);

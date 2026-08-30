@@ -28,6 +28,13 @@ public interface InnerUserService {
     User getInvokeUser(String accessKey);
 
     /**
+     * 判断是否为管理员
+     * @param userId
+     * @return
+     */
+    Boolean isAdmin(Long userId);
+
+    /**
      * 获取当前登录用户
      *
      * @param request

@@ -31,4 +31,10 @@ public class InnerUserServiceImpl implements InnerUserService {
     public User getInvokeUser(String accessKey) {
         return userService.getInvokeUser(accessKey);
     }
+
+    @Override
+    public Boolean isAdmin(Long userId) {
+        User user = userService.getById(userId);
+        return userService.isAdmin(user);
+    }
 }

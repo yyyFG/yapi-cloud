@@ -115,12 +115,41 @@ public class UserInterfaceServiceImpl extends ServiceImpl<UserInterfaceMapper, U
     }
 
     @Override
-    public long hasApplied(long userId, long interfaceId) {
+    public boolean checkInvokable(long userId, long interfaceId) {
+        // 查数据库中有无记录
         QueryWrapper<UserInterface> queryWrapper = new QueryWrapper<>();
         queryWrapper.eq("userId", userId).eq("interfaceId", interfaceId);
-        return this.count(queryWrapper);
+        UserInterface userInterface = this.getOne(queryWrapper);
+        if (userInterface == null) {
+            throw new BusinessException(ErrorCode.NOT_FOUND_ERROR, "还未申请调用此接口，请先申请");
+        }
+        // 判断用户是否有资格调用接口
+        Integer status = userInterface.getStatus();
+        Integer leftNum = userInterface.getLeftNum();
+        if (UserInterfaceInfoConstant.USER_INTERFACE_BAN.equals(status)) {
+            throw new BusinessException(ErrorCode.NO_AUTH_ERROR, "已被禁止调用此接口");
+        }
+        if (leftNum <= 0) {
+            throw new BusinessException(ErrorCode.NO_AUTH_ERROR, "剩余调用次数不足");
+        }
+        return true;
     }
 
+    @Override
+    public Boolean invokeCount(long interfaceId, long userId) {
+        //接口、用户的校验已经在前面的方法调用中校验过了
+        // todo 后面引入 redis
+        UpdateWrapper<UserInterface> updateWrapper = new UpdateWrapper<>();
+        updateWrapper.eq("userId", userId).eq("interfaceId", interfaceId)
+                .gt("leftNum", 0)
+                .setSql("leftNum = leftNum - 1");
+        boolean update = this.update(updateWrapper);
+        if (!update) {
+            // ③ 影响 0 行：checkInvokable 通过后、调用期间被并发耗尽
+            throw new BusinessException(ErrorCode.NO_AUTH_ERROR, "剩余调用次数不足");
+        }
+        return true;
+    }
 
     @Override
     public QueryWrapper<UserInterface> getQueryWrapper(UserInterfaceQueryRequest userInterfaceQueryRequest) {
@@ -143,35 +172,6 @@ public class UserInterfaceServiceImpl extends ServiceImpl<UserInterfaceMapper, U
         queryWrapper.orderBy(SqlUtils.validSortField(sortField), CommonConstant.SORT_ORDER_ASC.equals(sortOrder),
                 sortField);
         return queryWrapper;
-    }
-
-
-    @Override
-    public Boolean invokeCount(long interfaceId, long userId) {
-        //接口、用户的校验已经在前面的方法调用中校验过了
-        // 查数据库中有无记录
-        QueryWrapper<UserInterface> queryWrapper = new QueryWrapper<>();
-        queryWrapper.eq("interfaceId", interfaceId).eq("userId", userId);
-        UserInterface userInterface = this.getOne(queryWrapper);
-        if (userInterface == null) {
-            throw new BusinessException(ErrorCode.NOT_FOUND_ERROR, "还未申请调用此接口，请先申请");
-        }
-        // 判断用户是否有资格调用接口
-        Integer status = userInterface.getStatus();
-        Integer leftNum = userInterface.getLeftNum();
-        if (UserInterfaceInfoConstant.USER_INTERFACE_BAN.equals(status)) {
-            throw new BusinessException(ErrorCode.NO_AUTH_ERROR, "已被禁止调用此接口");
-        }
-        if (leftNum <= 0) {
-            throw new BusinessException(ErrorCode.NO_AUTH_ERROR, "剩余调用次数不足");
-        }
-
-        // todo 后面引入 redis
-        UpdateWrapper<UserInterface> updateWrapper = new UpdateWrapper<>();
-        updateWrapper.eq("userId", userId).eq("interfaceId", interfaceId)
-                .gt("leftNum", 0)
-                .setSql("leftNum = leftNum - 1");
-        return this.update(updateWrapper);
     }
 
     /**

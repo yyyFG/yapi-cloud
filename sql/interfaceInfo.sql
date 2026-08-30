@@ -6,6 +6,7 @@ create table if not exists `interface_info`
     `interfaceName` varchar(256) not null comment '名称',
     `description` varchar(256) null comment '描述',
     `url` varchar(512) not null comment '接口地址',
+    `path` varchar(256) NOT NULL COMMENT '对外调用路径（平台自动生成，唯一）',
     `requestHeader` text null comment '请求头',
     `requestParams` text null comment '请求参数',
     `responseHeader` text null comment '响应头',
@@ -17,5 +18,6 @@ create table if not exists `interface_info`
     `isDelete` tinyint default 0 not null comment '是否删除(0-未删, 1-已删)',
     key `idx_user_status_delete` (`userId`, `status`, `isDelete`),
     key `idx_status_delete` (`status`, `isDelete`),
-    unique key `uk_user_method_url_delete` (`userId`, `method`, `url`, `isDelete`)
+    unique key `uk_user_method_url_delete` (`userId`, `method`, `url`, `isDelete`),
+    UNIQUE KEY uk_path (path)
 ) comment '接口信息';

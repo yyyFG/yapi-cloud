@@ -25,6 +25,9 @@ public class YApiClient {
 
     private String secretKey;
 
+    // 新增常量（以后做成可配置）
+    private static final String GATEWAY_HOST = "http://localhost:18098";
+
     public YApiClient() {
     }
 
@@ -111,9 +114,9 @@ public class YApiClient {
         HttpRequest httpRequest;
         // 根据请求类型构造请求：GET 请求将参数拼接在 URL 中（形如 name=xxx&age=18），其他请求将参数放入请求体（JSON 字符串）
         if ("GET".equalsIgnoreCase(method)) {
-            httpRequest = HttpRequest.get(url + "?" + requestParams);
+            httpRequest = HttpRequest.get(GATEWAY_HOST + url + "?" + requestParams);
         } else {
-            httpRequest = HttpRequest.post(url).body(requestParams);
+            httpRequest = HttpRequest.post(GATEWAY_HOST + url).body(requestParams);
         }
         // 添加接口本身配置的请求头（requestHeader 为 JSON 格式字符串，例如 {"Content-Type":"application/json"}）
         if (StrUtil.isNotBlank(requestHeader)) {

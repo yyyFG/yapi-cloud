@@ -28,15 +28,9 @@ public class InnerInterfaceInfoServiceImpl implements InnerInterfaceInfoService 
         return interfaceInfoService.getById(interfaceId);
     }
 
-    /**
-     * 获取接口
-     * @param url
-     * @param method
-     * @return
-     */
     @Override
-    public InterfaceInfo getInterfaceInfo(String url, String method) {
-        return interfaceInfoService.getInterfaceInfo(url, method);
+    public InterfaceInfo getInterfaceInfo(String path, String method) {
+        return interfaceInfoService.getInterfaceInfo(path, method);
     }
 }
 

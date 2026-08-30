@@ -66,12 +66,12 @@ public interface InterfaceInfoService extends IService<InterfaceInfo> {
     String invokeInterface(InterfaceInfoInvokeRequest interfaceInfoInvokeRequest, User loginUser);
 
     /**
-     * 获取接口
-     * @param url
+     * 根据 path 和 请求方法类型 从数据库中获取完整 url 来转发路由
+     * @param path
      * @param method
      * @return
      */
-    InterfaceInfo getInterfaceInfo(String url, String method);
+    InterfaceInfo getInterfaceInfo(String path, String method);
 
     /**
      * 获取查询条件

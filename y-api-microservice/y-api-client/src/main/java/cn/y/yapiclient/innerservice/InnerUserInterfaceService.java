@@ -30,7 +30,7 @@ public interface InnerUserInterfaceService {
      * @param interfaceId
      * @return
      */
-    long hasApplied(long userId, long interfaceId);
+    boolean checkInvokable(long userId, long interfaceId);
 
     /**
      * 新增用户接口调用（解耦）

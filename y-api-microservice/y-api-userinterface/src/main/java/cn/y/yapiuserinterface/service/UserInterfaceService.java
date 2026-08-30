@@ -54,7 +54,7 @@ public interface UserInterfaceService extends IService<UserInterface> {
      * @param interfaceId
      * @return
      */
-    long hasApplied(long userId, long interfaceId);
+    boolean checkInvokable(long userId, long interfaceId);
 
     /**
      * 获取查询条件

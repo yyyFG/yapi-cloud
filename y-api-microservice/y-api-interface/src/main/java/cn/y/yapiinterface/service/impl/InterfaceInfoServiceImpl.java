@@ -3,6 +3,10 @@ package cn.y.yapiinterface.service.impl;
 import cn.hutool.core.bean.BeanUtil;
 import cn.hutool.core.lang.Validator;
 import cn.hutool.core.util.StrUtil;
+import cn.hutool.core.util.URLUtil;
+import cn.hutool.http.HttpException;
+import cn.hutool.http.HttpRequest;
+import cn.hutool.http.HttpResponse;
 import cn.y.yapiclient.innerservice.InnerUserInterfaceService;
 import cn.y.yapicommon.common.DeleteRequest;
 import cn.y.yapicommon.common.ErrorCode;
@@ -22,8 +26,6 @@ import cn.y.yapimodel.entity.InterfaceInfo;
 import cn.y.yapimodel.entity.User;
 import cn.y.yapiinterface.service.InterfaceInfoService;
 import cn.y.yapicommon.utils.SqlUtils;
-import cn.y.yapiclientsdk.client.YApiClient;
-import cn.y.yapimodel.entity.UserInterface;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.UpdateWrapper;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
@@ -31,6 +33,8 @@ import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.dubbo.config.annotation.DubboReference;
 import org.springframework.stereotype.Service;
+
+import java.util.Objects;
 
 import static cn.y.yapicommon.constant.UserConstant.ADMIN_ROLE;
 import static cn.y.yapimodel.enums.InterfaceStatusEnum.*;
@@ -65,6 +69,13 @@ public class InterfaceInfoServiceImpl extends ServiceImpl<InterfaceInfoMapper, I
         if (!Validator.isUrl(interfaceInfoAddRequest.getUrl())) {
             throw new BusinessException(ErrorCode.PARAMS_ERROR, "接口地址格式不正确");
         }
+//        String host = URI.create(interfaceInfoAddRequest.getUrl()).getHost();
+//        if (StrUtil.isBlank(host) || host.equals("localhost")
+//                || host.startsWith("127.") || host.startsWith("10.")
+//                || host.startsWith("192.168.") || host.startsWith("172.16.")
+//                || host.startsWith("172.17.") || host.equals("0.0.0.0")) {
+//            throw new BusinessException(ErrorCode.PARAMS_ERROR, "接口地址不合法，禁止指向内网地址");
+//        }
         if (StrUtil.isBlank(interfaceInfoAddRequest.getMethod())) {
             throw new BusinessException(ErrorCode.PARAMS_ERROR, "接口方法类型不能为空");
         }
@@ -72,11 +83,25 @@ public class InterfaceInfoServiceImpl extends ServiceImpl<InterfaceInfoMapper, I
         if (!StrUtil.equalsAnyIgnoreCase(interfaceInfoAddRequest.getMethod(), "GET", "POST", "PUT", "DELETE")) {
             throw new BusinessException(ErrorCode.PARAMS_ERROR, "接口方法类型不合法");
         }
+        String url = interfaceInfoAddRequest.getUrl();
+
+        QueryWrapper<InterfaceInfo> queryWrapper = new QueryWrapper<>();
+        queryWrapper.eq("userId", loginUser.getId()).eq("url", url);
+        long count = this.count(queryWrapper);
+        if (count > 0) {
+            throw new BusinessException(ErrorCode.OPERATION_ERROR, "接口已存在");
+        }
+        // 从真实 url 提取 path 部分（http://a.com/user/info → user/info）
+        String realPath = URLUtil.getPath(interfaceInfoAddRequest.getUrl());
+        // 自动生成对外 path：/api/u{userId}/{真实path}，天然隔离不同用户的重复 path
+        String path = "/api/u" + loginUser.getId() + "/" + realPath.replaceAll("^/", "");
+
         InterfaceInfo interfaceInfo = new InterfaceInfo();
         BeanUtil.copyProperties(interfaceInfoAddRequest, interfaceInfo);
         // 统一将方法类型用大写存储
         interfaceInfo.setMethod(interfaceInfoAddRequest.getMethod().toUpperCase());
         interfaceInfo.setUserId(loginUser.getId());
+        interfaceInfo.setPath(path);
 
         return this.save(interfaceInfo);
     }
@@ -157,21 +182,35 @@ public class InterfaceInfoServiceImpl extends ServiceImpl<InterfaceInfoMapper, I
         if (!userId.equals(oldInterfaceInfo.getUserId()) && !ADMIN_ROLE.equals(userRole)) {
             throw new BusinessException(ErrorCode.NO_AUTH_ERROR, "无权限发布该接口");
         }
-
-        // 判断接口是否可以调用
-        cn.y.yapiclientsdk.model.InterfaceInfo interfaceInfo= new cn.y.yapiclientsdk.model.InterfaceInfo();
-        BeanUtil.copyProperties(oldInterfaceInfo, interfaceInfo);
-        try {
-            // 获取当前用户的 accessKey 和 secretKey
-            String accessKey = loginUser.getAccessKey();
-            String secretKey = loginUser.getSecretKey();
-            YApiClient yApiClient = new YApiClient(accessKey, secretKey);
-            String body = yApiClient.invokeInterface(interfaceInfo);
-            log.info("调用成功，响应: {}", body);
-        } catch (Exception e) {
-            throw new BusinessException(ErrorCode.OPERATION_ERROR, e.getMessage());
+        // 判断接口是否已经发布
+        if (oldInterfaceInfo.getStatus() == PUBLISH.getValue()) {
+            throw new BusinessException(ErrorCode.OPERATION_ERROR, "接口已经发布过了");
         }
 
+        String method = oldInterfaceInfo.getMethod();
+        String requestParams = oldInterfaceInfo.getRequestParams();
+        String url = oldInterfaceInfo.getUrl();
+        // 判断接口是否可以调用：只要能打通调用渠道（请求成功发出）即视为可调用，
+        // 被调用方返回任何状态码、甚至响应超时都不影响发布（问题不在我方）
+        HttpRequest httpRequest;
+        // 在线调用接口
+        try {
+            // 根据请求类型构造请求：GET 请求将参数拼接在 URL 中（形如 name=xxx&age=18），其他请求将参数放入请求体（JSON 字符串）
+            if ("GET".equalsIgnoreCase(method)) {
+                httpRequest = HttpRequest.get(url + "?" + requestParams);
+            } else {
+                httpRequest = HttpRequest.post(url).body(requestParams);
+            }
+            // 设置连接/读取超时，避免发布流程被目标服务长时间挂起
+            HttpResponse httpResponse = httpRequest.timeout(5000).execute();
+            String result = httpResponse.body();
+            if (result == null) {
+                throw new BusinessException(ErrorCode.OPERATION_ERROR, "调用接口失败");
+            }
+        } catch (HttpException e) {
+            log.error("调用接口 {} 失败，渠道未打通", url, e);
+            throw new BusinessException(ErrorCode.OPERATION_ERROR, "调用接口失败，目标服务不可达");
+        }
         // 修改数据库状态字段为  1 published（默认发布状态）
 //        oldInterfaceInfo.setStatus(PUBLISH.getValue());
 //        boolean result = this.updateById(oldInterfaceInfo);
@@ -248,30 +287,40 @@ public class InterfaceInfoServiceImpl extends ServiceImpl<InterfaceInfoMapper, I
         if (PUBLISH.getValue() != status) {
             throw new BusinessException(ErrorCode.OPERATION_ERROR, "接口已关闭");
         }
-        // 判断用户是否申请过接口
-        long count = innerUserInterfaceService.hasApplied(loginUser.getId(), interfaceInfo.getId());
-        if (count == 0) {
-            throw new BusinessException(ErrorCode.PARAMS_ERROR, "用户还未申请这个接口");
+        // 判断用户是否申请过接口，本人或者管理员不用校验
+        Long userId = interfaceInfo.getUserId();
+        if (!Objects.equals(loginUser.getId(), userId) && !ADMIN_ROLE.equals(loginUser.getUserAccount())) {
+            innerUserInterfaceService.checkInvokable(loginUser.getId(), interfaceInfo.getId());
         }
 
-        cn.y.yapiclientsdk.model.InterfaceInfo interfaceInfoSdk = new cn.y.yapiclientsdk.model.InterfaceInfo();
-        BeanUtil.copyProperties(interfaceInfo, interfaceInfoSdk);
-        interfaceInfoSdk.setRequestParams(requestParams);
-        interfaceInfoSdk.setUrl(url);
+        HttpRequest httpRequest;
+        // 执行请求
+        HttpResponse httpResponse;
         // 在线调用接口
         try {
-            // 获取当前用户的 accessKey 和 secretKey
-            String accessKey = loginUser.getAccessKey();
-            String secretKey = loginUser.getSecretKey();
-            YApiClient yApiClient = new YApiClient(accessKey, secretKey);
-            String result = yApiClient.invokeInterface(interfaceInfoSdk);
-            log.info("用户 {} 调用接口 {}，响应: {}", loginUser.getUserAccount(), interfaceInfo.getInterfaceName(), result);
-            // 如果接口返回值是空的，也当他调用成功
-            boolean b = innerUserInterfaceService.invokeCount(interfaceInfo.getId(), loginUser.getId());
-            if (!b) {
-                throw new BusinessException(ErrorCode.SYSTEM_ERROR, "扣除接口调用次数失败");
+            // 根据请求类型构造请求：GET 请求将参数拼接在 URL 中（形如 name=xxx&age=18），其他请求将参数放入请求体（JSON 字符串）
+            if ("GET".equalsIgnoreCase(method)) {
+                httpRequest = HttpRequest.get(interfaceInfo.getUrl() + "?" + requestParams);
+            } else {
+                httpRequest = HttpRequest.post(interfaceInfo.getUrl()).body(requestParams);
             }
+            httpResponse = httpRequest.execute();
+            // 如果接口返回值是空的，也当他调用成功
+            if (!Objects.equals(loginUser.getId(), userId) && !ADMIN_ROLE.equals(loginUser.getUserAccount())) {
+                boolean b = innerUserInterfaceService.invokeCount(interfaceInfo.getId(), loginUser.getId());
+                if (!b) {
+                    throw new BusinessException(ErrorCode.SYSTEM_ERROR, "扣除接口调用次数失败");
+                }
+            }
+            String result = httpResponse.body();
+            log.info("用户 {} 调用接口 {}，响应: {}", loginUser.getUserAccount(), interfaceInfo.getInterfaceName(), result);
             return result;
+        }catch (BusinessException e) {
+            log.error("用户 {} 调用接口 {} 失败", loginUser.getUserAccount(), interfaceInfo.getInterfaceName(), e);
+            throw new BusinessException(ErrorCode.OPERATION_ERROR, "调用失败" + e.getMessage());
+        } catch (HttpException e) {
+            log.error("用户 {} 调用接口 {} 失败", loginUser.getUserAccount(), interfaceInfo.getInterfaceName(), e);
+            throw new BusinessException(ErrorCode.OPERATION_ERROR, "调用接口失败，目标服务不可达");
         } catch (Exception e) {
             log.error("用户 {} 调用接口 {} 失败", loginUser.getUserAccount(), interfaceInfo.getInterfaceName(), e);
             throw new BusinessException(ErrorCode.OPERATION_ERROR, "接口调用失败");
@@ -324,8 +373,8 @@ public class InterfaceInfoServiceImpl extends ServiceImpl<InterfaceInfoMapper, I
     }
 
     @Override
-    public InterfaceInfo getInterfaceInfo(String url, String method) {
-        if (StrUtil.isBlank(url)) {
+    public InterfaceInfo getInterfaceInfo(String path, String method) {
+        if (StrUtil.isBlank(path)) {
             throw new BusinessException(ErrorCode.PARAMS_ERROR, "接口地址不能为空");
         }
         if (StrUtil.isBlank(method)) {
@@ -337,7 +386,7 @@ public class InterfaceInfoServiceImpl extends ServiceImpl<InterfaceInfoMapper, I
         }
         // 网关获取到的地址是不完整的，只有一部分 url 路径
         QueryWrapper<InterfaceInfo> queryWrapper = new QueryWrapper<>();
-        queryWrapper.eq("url", url).eq("method", method.toUpperCase());
+        queryWrapper.eq("path", path).eq("method", method.toUpperCase());
         InterfaceInfo interfaceInfo = this.getOne(queryWrapper);
         if (interfaceInfo == null) {
             throw new BusinessException(ErrorCode.NOT_FOUND_ERROR, "接口不存在");
@@ -361,6 +410,7 @@ public class InterfaceInfoServiceImpl extends ServiceImpl<InterfaceInfoMapper, I
         String requestParams = interfaceInfoQueryRequest.getRequestParams();
         String responseHeader = interfaceInfoQueryRequest.getResponseHeader();
         String url = interfaceInfoQueryRequest.getUrl();
+        String path = interfaceInfoQueryRequest.getPath();
         String method = interfaceInfoQueryRequest.getMethod();
         if (StrUtil.isNotBlank(method)){
             method = interfaceInfoQueryRequest.getMethod().toUpperCase();
@@ -376,6 +426,7 @@ public class InterfaceInfoServiceImpl extends ServiceImpl<InterfaceInfoMapper, I
         queryWrapper.like(StringUtils.isNotBlank(requestParams), "requestParams", requestParams);
         queryWrapper.like(StringUtils.isNotBlank(responseHeader), "responseHeader", responseHeader);
         queryWrapper.like(StringUtils.isNotBlank(url), "url", url);
+        queryWrapper.like(StringUtils.isNotBlank(path), "path", path);
         queryWrapper.like(StringUtils.isNotBlank(description), "description", description);
         queryWrapper.like(StringUtils.isNotBlank(interfaceName), "interfaceName", interfaceName);
         queryWrapper.orderBy(SqlUtils.validSortField(sortField), CommonConstant.SORT_ORDER_ASC.equals(sortOrder),

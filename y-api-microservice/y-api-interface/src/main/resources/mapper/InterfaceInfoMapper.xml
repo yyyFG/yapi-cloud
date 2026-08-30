@@ -9,6 +9,7 @@
             <result property="interfaceName" column="interfaceName" />
             <result property="description" column="description" />
             <result property="url" column="url" />
+            <result property="path" column="path" />
             <result property="requestHeader" column="requestHeader" />
             <result property="requestParams" column="requestParams" />
             <result property="responseHeader" column="responseHeader" />
@@ -21,7 +22,7 @@
     </resultMap>
 
     <sql id="Base_Column_List">
-        id,interfaceName,description,url,requestHeader,requestParams,responseHeader,
+        id,interfaceName,description,url,path,requestHeader,requestParams,responseHeader,
         status,method,userId,createTime,updateTime,
         isDelete
     </sql>

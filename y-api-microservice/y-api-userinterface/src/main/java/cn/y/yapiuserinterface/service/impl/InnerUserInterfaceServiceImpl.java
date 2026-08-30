@@ -30,8 +30,8 @@ public class InnerUserInterfaceServiceImpl implements InnerUserInterfaceService 
     }
 
     @Override
-    public long hasApplied(long userId, long interfaceId) {
-        return userInterfaceService.hasApplied(userId, interfaceId);
+    public boolean checkInvokable(long userId, long interfaceId) {
+        return userInterfaceService.checkInvokable(userId, interfaceId);
     }
 
     @Override

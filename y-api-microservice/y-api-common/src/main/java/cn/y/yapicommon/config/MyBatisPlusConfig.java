@@ -11,18 +11,16 @@ import org.springframework.context.annotation.Configuration;
  * MyBatis Plus 配置
  */
 @Configuration
-@MapperScan("cn.y.yapi.mapper")
 public class MyBatisPlusConfig {
 
     /**
-     * 拦截器配置
+     *  MyBatis-Plus 分页插件：page() 分页查询依赖它拼 LIMIT
      *
      * @return
      */
     @Bean
     public MybatisPlusInterceptor mybatisPlusInterceptor() {
         MybatisPlusInterceptor interceptor = new MybatisPlusInterceptor();
-        // 分页插件
         interceptor.addInnerInterceptor(new PaginationInnerInterceptor(DbType.MYSQL));
         return interceptor;
     }

@@ -61,34 +61,12 @@ public class YApiClient {
         return result;
     }
 
-    // 使用 POST 方法向服务器发送 User 对象，并获取服务器返回的结果
-    public String getNameByUser(User user) {
-        // 将 User 对象转换为 JSON 字符串
-        String jsonStr = JSONUtil.toJsonStr(user);
-        // 使用 HttpRequest 工具发起 POST 请求，并获取服务器返回的响应
-        HttpResponse httpResponse = HttpRequest.post("http://localhost:8123/api/name/postUser")
-                // 添加前面构造的请求头
-                .addHeaders(getHeaderMap(jsonStr))
-                .body(jsonStr)  // 将 JSON 字符串设置为请求体
-                .execute();     // 执行 POST 请求
-        // 打印服务器返回的状态码
-        System.out.println(httpResponse.getStatus());
-        // 获取服务器返回的结果
-        String result = httpResponse.body();
-        // 打印服务器返回的结果
-        System.out.println(result);
-        // 返回服务器返回的结果
-        return result;
-    }
-
     // 创建私有方法，用于构造请求头
-    private Map<String, String> getHeaderMap(String body) {
+    private Map<String, String> getHeaderMap(String url, String method, String body) {
         // 创建一个新的 HashMap 对象
         Map<String, String> hashMap = new HashMap<>();
         // 将 "accessKey" 和其对应的值放入 map 中
         hashMap.put("accessKey", accessKey);
-        // 一定不能直接发送
-//        hashMap.put("secretKey", secretKey);
         // 生成随机数（生成一个包含 4 个随机数字的字符串）
         String nonce = RandomUtil.randomNumbers(8);
         hashMap.put("nonce", nonce);
@@ -99,7 +77,8 @@ public class YApiClient {
         // String.valueOf() 方法用于将数值转换成字符串
         hashMap.put("timestamp", String.valueOf(System.currentTimeMillis() / 1000));
         // 生成签名
-        hashMap.put("sign", SignUtils.genSign(body, secretKey));
+        String content = url + "\n" + method + "\n" + body;
+        hashMap.put("sign", SignUtils.genSign(content, secretKey));
         // 返回构造的请求头 map
         return hashMap;
     }
@@ -127,7 +106,7 @@ public class YApiClient {
         }
 
         // 添加鉴权请求头（accessKey、nonce、timestamp、sign 等）
-        httpRequest.addHeaders(getHeaderMap(requestParams));
+        httpRequest.addHeaders(getHeaderMap(url, method, requestParams));
 
         // 执行请求
         HttpResponse httpResponse = httpRequest.execute();

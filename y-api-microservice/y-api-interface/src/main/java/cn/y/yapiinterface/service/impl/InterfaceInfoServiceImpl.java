@@ -95,7 +95,11 @@ public class InterfaceInfoServiceImpl extends ServiceImpl<InterfaceInfoMapper, I
         String realPath = URLUtil.getPath(interfaceInfoAddRequest.getUrl());
         // 自动生成对外 path：/api/u{userId}/{真实path}，天然隔离不同用户的重复 path
         String path = "/api/u" + loginUser.getId() + "/" + realPath.replaceAll("^/", "");
-
+        QueryWrapper<InterfaceInfo> pathQuery = new QueryWrapper<>();
+        pathQuery.eq("path", path);
+        if (this.count(pathQuery) > 0) {
+            throw new BusinessException(ErrorCode.PARAMS_ERROR, "接口路径冲突，请更换接口地址");
+        }
         InterfaceInfo interfaceInfo = new InterfaceInfo();
         BeanUtil.copyProperties(interfaceInfoAddRequest, interfaceInfo);
         // 统一将方法类型用大写存储

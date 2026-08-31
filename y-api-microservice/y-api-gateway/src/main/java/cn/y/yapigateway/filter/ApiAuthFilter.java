@@ -163,7 +163,8 @@ public class ApiAuthFilter implements GlobalFilter, Ordered {
         // 获取用户数据库的密钥
         String secretKey = invokeUser.getSecretKey();
         // 使用获取到的密钥对请求体进行签名
-        String serverSign = SignUtils.genSign(body, secretKey);
+        String content = path + "\n" + method + "\n" + body;
+        String serverSign = SignUtils.genSign(content, secretKey);
         // 检查请求体中的签名是否为空，或者是否与服务器生成的签名不一样
         if (sign == null || !sign.equals(serverSign)) {
             // 如果签名为空或者签名不一致，返回处理未授权的响应
@@ -176,6 +177,9 @@ public class ApiAuthFilter implements GlobalFilter, Ordered {
         try {
             // 调用内部服务，获取接口信息
             interfaceInfo = innerInterfaceInfoService.getInterfaceInfo(path, method);
+            if (interfaceInfo == null) {
+                return handleInvokeError(response);
+            }
             // 接口调用限流
             boolean interfaceAllowed = rateLimiterManager.doRateLimit(
                     RateLimitType.INTERFACE.getPrefix() + interfaceInfo.getId(), 10, 1

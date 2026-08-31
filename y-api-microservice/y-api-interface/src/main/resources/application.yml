@@ -1,10 +1,6 @@
 spring:
   application:
     name: y-api-interface
-  config:
-    import:
-      # optional: Nacos 上没有这份配置/连不上时也不影响启动,本地 yml 照常生效
-      - optional:nacos:${spring.application.name}.yml
   # session
   session:
     store-type: redis
@@ -52,11 +48,11 @@ knife4j:
   openapi:
     title: "接口文档"
     version: 1.0
-    group:
-      default:
-        api-rule: package
-        api-rule-resources:
-          - cn.y.yapiinterface.controller
+# openapi3(springdoc) 模式下分组由 springdoc 管理，knife4j 的 group 配置不生效
+springdoc:
+  group-configs:
+    - group: default
+      packages-to-scan: cn.y.yapiinterface.controller
 # 以下配置指定了应用的名称、使用的协议（Dubbo）、注册中心的类型（Nacos）和地址
 dubbo:
   registry:

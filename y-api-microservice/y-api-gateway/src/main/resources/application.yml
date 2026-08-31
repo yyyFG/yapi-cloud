@@ -55,7 +55,7 @@ knife4j:
     strategy: discover  # 服务发现模式
     discover:
       enabled: true    # 启动服务发现
-      version: swagger2
+      version: openapi3
       excluded-services: y-api-gateway
 # 以下配置指定了应用的名称、使用的协议（Dubbo）、注册中心的类型（Nacos）和地址
 dubbo:

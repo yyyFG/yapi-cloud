@@ -48,11 +48,11 @@ knife4j:
   openapi:
     title: "接口文档"
     version: 1.0
-    group:
-      default:
-        api-rule: package
-        api-rule-resources:
-          - cn.y.yapiuser.controller
+# openapi3(springdoc) 模式下分组由 springdoc 管理，knife4j 的 group 配置不生效
+springdoc:
+  group-configs:
+    - group: default
+      packages-to-scan: cn.y.yapiuser.controller
 # 以下配置指定了应用的名称、使用的协议（Dubbo）、注册中心的类型（Nacos）和地址
 dubbo:
   registry:

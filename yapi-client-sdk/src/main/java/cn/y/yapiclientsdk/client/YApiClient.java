@@ -90,7 +90,7 @@ public class YApiClient {
         // 一定不能直接发送
 //        hashMap.put("secretKey", secretKey);
         // 生成随机数（生成一个包含 4 个随机数字的字符串）
-        String nonce = RandomUtil.randomNumbers(4);
+        String nonce = RandomUtil.randomNumbers(8);
         hashMap.put("nonce", nonce);
         // 请求体内容，URL 编码避免中文乱码
         hashMap.put("body", URLUtil.encode(body));

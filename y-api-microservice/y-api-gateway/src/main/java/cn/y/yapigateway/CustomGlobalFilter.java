@@ -34,6 +34,7 @@ import java.io.UnsupportedEncodingException;
 import java.net.URI;
 import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -142,7 +143,18 @@ public class CustomGlobalFilter implements GlobalFilter, Ordered {
         if (StrUtil.isBlank(nonce)) {
             return handleNoAuth(response);
         }
-
+        try {
+            Long.parseLong(nonce);
+        } catch (NumberFormatException e) {
+            return handleNoAuth(response);
+        }
+        String nonceKey = "yapi:nonce:" + accessKey + ":" + nonce;
+        Boolean firstUse = stringRedisTemplate.opsForValue()
+                .setIfAbsent(nonceKey, "1", Duration.ofMinutes(5));
+        if (!Boolean.TRUE.equals(firstUse)) {
+            log.warn("疑似重放请求被拦截, accessKey: {}, nonce: {}", accessKey, nonce);
+            return handleNoAuth(response);
+        }
 
         // todo 4. 校验时间戳和当前时间的差距，和当前时间不能超过五分钟
         long currentTime = System.currentTimeMillis() / 1000;

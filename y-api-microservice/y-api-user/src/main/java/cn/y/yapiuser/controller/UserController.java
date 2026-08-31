@@ -14,8 +14,7 @@ import cn.y.yapimodel.vo.LoginUserVO;
 import cn.y.yapimodel.vo.UserVO;
 import cn.y.yapiuser.service.UserService;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
-import io.swagger.annotations.Api;
-import io.swagger.annotations.ApiOperation;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.beans.BeanUtils;
@@ -31,7 +30,7 @@ import static cn.y.yapiuser.service.impl.UserServiceImpl.SALT;
 /**
  * 用户接口
  */
-@Api(tags = "用户管理模块")
+@Tag(name = "用户管理")
 @RestController
 @Slf4j
 public class UserController {
@@ -47,7 +46,7 @@ public class UserController {
      * @param userRegisterRequest
      * @return
      */
-    @ApiOperation(value = "用户注册")
+    @Tag(name = "用户注册")
     @PostMapping("/register")
     public BaseResponse<Long> userRegister(@RequestBody UserRegisterRequest userRegisterRequest) {
         if (userRegisterRequest == null) {

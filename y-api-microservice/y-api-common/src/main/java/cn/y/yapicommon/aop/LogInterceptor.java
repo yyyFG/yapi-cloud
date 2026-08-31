@@ -1,4 +1,4 @@
-package cn.y.yapiuser.aop;
+package cn.y.yapicommon.aop;
 
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
@@ -18,14 +18,13 @@ import java.util.UUID;
  * 请求响应日志 AOP
  */
 @Aspect
-@Component
 @Slf4j
 public class LogInterceptor {
 
     /**
      * 执行拦截
      */
-    @Around("execution(* cn.y.yapiuser.controller.*.*(..))")
+    @Around("execution(* cn.y.yapi*.controller.*.*(..))")
     public Object doInterceptor(ProceedingJoinPoint point) throws Throwable {
         // 计时
         StopWatch stopWatch = new StopWatch();
@@ -34,7 +33,10 @@ public class LogInterceptor {
         RequestAttributes requestAttributes = RequestContextHolder.currentRequestAttributes();
         HttpServletRequest httpServletRequest = ((ServletRequestAttributes) requestAttributes).getRequest();
         // 生成请求唯一 id
-        String requestId = UUID.randomUUID().toString();
+        String requestId = httpServletRequest.getHeader("X-Request-Id");
+        if (StringUtils.isBlank(requestId)) {
+            requestId = UUID.randomUUID().toString();
+        }
         String url = httpServletRequest.getRequestURI();
         // 获取请求参数
         Object[] args = point.getArgs();

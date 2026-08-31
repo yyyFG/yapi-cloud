@@ -7,6 +7,8 @@ import cn.y.yapiclient.innerservice.InnerUserInterfaceService;
 import cn.y.yapiclient.innerservice.InnerUserService;
 import cn.y.yapiclientsdk.utils.SignUtils;
 import cn.y.yapicommon.exception.BusinessException;
+import cn.y.yapicommon.ratelimit.enums.RateLimitType;
+import cn.y.yapicommon.ratelimit.manager.RedissonRateLimiterManager;
 import cn.y.yapimodel.entity.InterfaceInfo;
 import cn.y.yapimodel.entity.User;
 import lombok.extern.slf4j.Slf4j;
@@ -58,6 +60,9 @@ public class CustomGlobalFilter implements GlobalFilter, Ordered {
     @Resource
     private StringRedisTemplate stringRedisTemplate;
 
+    @Resource
+    private RedissonRateLimiterManager rateLimiterManager;
+
 
     private static final List<String> IP_WHITE_LIST = Arrays.asList("127.0.0.1");
 
@@ -69,7 +74,7 @@ public class CustomGlobalFilter implements GlobalFilter, Ordered {
 
     /** knife4j 文档相关路径，放行不经鉴权 */
     private static final List<String> DOC_WHITE_LIST = Arrays.asList(
-            "/interfaceInfo/v2/api-docs/**", "/user/v2/api-docs/**", "/userInterface/v2/api-docs/**",
+            "/interfaceInfo/v3/api-docs/**", "/user/v3/api-docs/**", "/userInterface/v3/api-docs/**",
             "/doc.html", "/webjars/**",
             "/swagger-resources/**", "/favicon.ico"
     );
@@ -129,6 +134,13 @@ public class CustomGlobalFilter implements GlobalFilter, Ordered {
         try {
             // 调用内部服务，根据密钥访问获取用户信息
             invokeUser = innerUserService.getInvokeUser(accessKey);
+            boolean userAllowed = rateLimiterManager.doRateLimit(
+                    RateLimitType.USER.getPrefix() + invokeUser.getId(), 2, 1
+            );
+            if (!userAllowed) {
+                log.warn("调用方限流: userId={}", invokeUser.getId());
+                return handleRateLimit(response);
+            }
         } catch (BusinessException e) {
             // 如果用户信息为空，处理未授权情况并返回响应
             return handleNoAuth(response);
@@ -182,6 +194,14 @@ public class CustomGlobalFilter implements GlobalFilter, Ordered {
         try {
             // 调用内部服务，获取接口信息
             interfaceInfo = innerInterfaceInfoService.getInterfaceInfo(path, method);
+            // 接口调用限流
+            boolean interfaceAllowed = rateLimiterManager.doRateLimit(
+                    RateLimitType.INTERFACE.getPrefix() + interfaceInfo.getId(), 10, 1
+            );
+            if (!interfaceAllowed) {
+                log.warn("接口限流: interfaceId={}", interfaceInfo.getId());
+                return handleRateLimit(response);
+            }
             // todo 6. 请求转发，调用接口
             String originalQuery = request.getURI().getRawQuery();
             String target = interfaceInfo.getUrl();
@@ -273,6 +293,13 @@ public class CustomGlobalFilter implements GlobalFilter, Ordered {
         response.setStatusCode(HttpStatus.INTERNAL_SERVER_ERROR);
         return response.setComplete();
     }
+
+    // 限流处理
+    public Mono<Void> handleRateLimit(ServerHttpResponse response) {
+        response.setStatusCode(HttpStatus.TOO_MANY_REQUESTS);
+        return response.setComplete();
+    }
+
 
     @Override
     public int getOrder() {

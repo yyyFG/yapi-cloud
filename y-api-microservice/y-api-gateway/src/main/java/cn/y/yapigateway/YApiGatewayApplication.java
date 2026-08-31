@@ -1,12 +1,15 @@
 package cn.y.yapigateway;
 
 
+import cn.y.yapicommon.ratelimit.config.RedissonConfig;
+import cn.y.yapicommon.ratelimit.manager.RedissonRateLimiterManager;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfiguration;
 import org.springframework.cloud.client.discovery.EnableDiscoveryClient;
 import org.springframework.context.ConfigurableApplicationContext;
+import org.springframework.context.annotation.Import;
 import org.springframework.core.env.Environment;
 
 
@@ -15,6 +18,7 @@ import org.springframework.core.env.Environment;
 @SpringBootApplication(exclude = {DataSourceAutoConfiguration.class})
 @Slf4j
 @EnableDiscoveryClient
+@Import({RedissonConfig.class, RedissonRateLimiterManager.class})
 public class YApiGatewayApplication {
 
     public static void main(String[] args) {

@@ -6,7 +6,7 @@ import java.util.Arrays;
 import java.util.List;
 
 /**
- * 网关路径分流判断（管理端 / 文档 / API），白名单只维护这一份
+ * 网关路径分流判断（管理端 / 文档 / API）
  */
 public class GatewayPathMatcher {
 

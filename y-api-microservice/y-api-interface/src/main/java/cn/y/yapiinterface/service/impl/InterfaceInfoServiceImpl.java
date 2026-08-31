@@ -2,6 +2,7 @@ package cn.y.yapiinterface.service.impl;
 
 import cn.hutool.core.bean.BeanUtil;
 import cn.hutool.core.lang.Validator;
+import cn.hutool.core.net.NetUtil;
 import cn.hutool.core.util.StrUtil;
 import cn.hutool.core.util.URLUtil;
 import cn.hutool.http.HttpException;
@@ -32,8 +33,10 @@ import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.dubbo.config.annotation.DubboReference;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
+import java.net.URI;
 import java.util.Objects;
 
 import static cn.y.yapicommon.constant.UserConstant.ADMIN_ROLE;
@@ -50,6 +53,9 @@ public class InterfaceInfoServiceImpl extends ServiceImpl<InterfaceInfoMapper, I
 
     @DubboReference
     private InnerUserInterfaceService innerUserInterfaceService;
+
+    @Value("${platform.ssrf.check-enabled:true}")
+    private boolean ssrfCheckEnabled;
 
     /**
      * 新增接口
@@ -69,13 +75,8 @@ public class InterfaceInfoServiceImpl extends ServiceImpl<InterfaceInfoMapper, I
         if (!Validator.isUrl(interfaceInfoAddRequest.getUrl())) {
             throw new BusinessException(ErrorCode.PARAMS_ERROR, "接口地址格式不正确");
         }
-//        String host = URI.create(interfaceInfoAddRequest.getUrl()).getHost();
-//        if (StrUtil.isBlank(host) || host.equals("localhost")
-//                || host.startsWith("127.") || host.startsWith("10.")
-//                || host.startsWith("192.168.") || host.startsWith("172.16.")
-//                || host.startsWith("172.17.") || host.equals("0.0.0.0")) {
-//            throw new BusinessException(ErrorCode.PARAMS_ERROR, "接口地址不合法，禁止指向内网地址");
-//        }
+        // 新增：SSRF 校验（url 非空才查）校验接口地址是否为内网地址
+        checkSsrf(interfaceInfoAddRequest.getUrl());
         if (StrUtil.isBlank(interfaceInfoAddRequest.getMethod())) {
             throw new BusinessException(ErrorCode.PARAMS_ERROR, "接口方法类型不能为空");
         }
@@ -84,7 +85,6 @@ public class InterfaceInfoServiceImpl extends ServiceImpl<InterfaceInfoMapper, I
             throw new BusinessException(ErrorCode.PARAMS_ERROR, "接口方法类型不合法");
         }
         String url = interfaceInfoAddRequest.getUrl();
-
         QueryWrapper<InterfaceInfo> queryWrapper = new QueryWrapper<>();
         queryWrapper.eq("userId", loginUser.getId()).eq("url", url);
         long count = this.count(queryWrapper);
@@ -132,6 +132,24 @@ public class InterfaceInfoServiceImpl extends ServiceImpl<InterfaceInfoMapper, I
         if (StrUtil.isNotBlank(url) && !Validator.isUrl(url)) {
             throw new BusinessException(ErrorCode.PARAMS_ERROR, "接口地址格式不正确");
         }
+        // 新增：SSRF 校验（url 非空才查）
+        if (StrUtil.isNotBlank(url)) {
+            checkSsrf(url);
+        }
+        String path = interfaceInfoUpdateRequest.getPath();
+        String newPath = null;
+        if (StrUtil.isNotBlank(path)) {
+            // 格式校验
+            validatePathFormat(path);
+            // 拼完整 path：与 add 的拼接规则对齐（用户只填自定义部分，前缀平台拼）
+            newPath = "/api/u" + loginUser.getId() + "/" + path.replaceAll("^/+|/+$", "");
+            QueryWrapper<InterfaceInfo> pathQuery = new QueryWrapper<>();
+            // 查重：排除自己（ne("id", id)），否则改个名都可能撞到自己
+            pathQuery.eq("path", path).ne("id", id);
+            if (this.count(pathQuery) > 0) {
+                throw new BusinessException(ErrorCode.OPERATION_ERROR, "该接口路径已被使用，请换一个");
+            }
+        }
         String method = interfaceInfoUpdateRequest.getMethod();
         // 校验接口方法类型是否合法
         if (StrUtil.isNotBlank(method)) {
@@ -142,9 +160,21 @@ public class InterfaceInfoServiceImpl extends ServiceImpl<InterfaceInfoMapper, I
         }
         InterfaceInfo interfaceInfo = new InterfaceInfo();
         BeanUtil.copyProperties(interfaceInfoUpdateRequest, interfaceInfo);
-
+        interfaceInfo.setPath(newPath);
         return this.updateById(interfaceInfo);
     }
+
+    /**
+     * 校验用户自定义的接口路径片段格式
+     */
+    private void validatePathFormat(String customPath) {
+        if (StrUtil.isBlank(customPath)
+                || !customPath.matches("^[a-zA-Z0-9][a-zA-Z0-9/_-]{1,99}$")
+                || customPath.contains("..")) {
+            throw new BusinessException(ErrorCode.PARAMS_ERROR, "接口路径格式不正确");
+        }
+    }
+
 
     /**
      * 删除接口
@@ -436,6 +466,19 @@ public class InterfaceInfoServiceImpl extends ServiceImpl<InterfaceInfoMapper, I
         queryWrapper.orderBy(SqlUtils.validSortField(sortField), CommonConstant.SORT_ORDER_ASC.equals(sortOrder),
                 sortField);
         return queryWrapper;
+    }
+
+    /**
+     * SSRF 防护：真实地址禁止指向内网
+     */
+    private void checkSsrf(String url) {
+        if (!ssrfCheckEnabled) {
+            return;
+        }
+        String host = URI.create(url).getHost();
+        if ("localhost".equalsIgnoreCase(host) || NetUtil.isInnerIP(host)) {
+            throw new BusinessException(ErrorCode.PARAMS_ERROR, "接口地址不合法，禁止指向内网地址");
+        }
     }
 
     /**

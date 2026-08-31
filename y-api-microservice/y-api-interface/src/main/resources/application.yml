@@ -74,3 +74,6 @@ dubbo:
     timeout: 60000
   provider:
     timeout: 60000
+platform:
+  ssrf:
+    check-enabled: true          # 生产开，测试环境关

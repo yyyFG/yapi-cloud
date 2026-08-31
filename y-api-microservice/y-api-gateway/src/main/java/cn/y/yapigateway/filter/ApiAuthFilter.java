@@ -15,7 +15,6 @@ import cn.y.yapimodel.entity.User;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.dubbo.config.annotation.DubboReference;
 import org.reactivestreams.Publisher;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.cloud.gateway.filter.GatewayFilterChain;
 import org.springframework.cloud.gateway.filter.GlobalFilter;
 import org.springframework.core.Ordered;
@@ -39,9 +38,10 @@ import java.net.URI;
 import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
-import java.util.List;
 
-
+/**
+ * SDK 调用流量：IP 限流 + AK/SK 鉴权 + 用户限流 + 防重放/时间戳/签名校验 + 接口校验限流 + 转发调用计数
+ */
 @Component
 @Slf4j
 public class ApiAuthFilter implements GlobalFilter, Ordered {

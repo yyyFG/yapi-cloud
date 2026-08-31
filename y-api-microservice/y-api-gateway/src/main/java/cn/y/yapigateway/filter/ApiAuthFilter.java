@@ -1,6 +1,6 @@
-package cn.y.yapigateway;
+package cn.y.yapigateway.filter;
 
-import cn.hutool.core.text.AntPathMatcher;
+
 import cn.hutool.core.util.StrUtil;
 import cn.y.yapiclient.innerservice.InnerInterfaceInfoService;
 import cn.y.yapiclient.innerservice.InnerUserInterfaceService;
@@ -9,11 +9,13 @@ import cn.y.yapiclientsdk.utils.SignUtils;
 import cn.y.yapicommon.exception.BusinessException;
 import cn.y.yapicommon.ratelimit.enums.RateLimitType;
 import cn.y.yapicommon.ratelimit.manager.RedissonRateLimiterManager;
+import cn.y.yapigateway.filter.support.GatewayPathMatcher;
 import cn.y.yapimodel.entity.InterfaceInfo;
 import cn.y.yapimodel.entity.User;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.dubbo.config.annotation.DubboReference;
 import org.reactivestreams.Publisher;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.cloud.gateway.filter.GatewayFilterChain;
 import org.springframework.cloud.gateway.filter.GlobalFilter;
 import org.springframework.core.Ordered;
@@ -37,16 +39,12 @@ import java.net.URI;
 import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
-import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 
-/**
- * 全局过滤
- */
+
 @Component
 @Slf4j
-public class CustomGlobalFilter implements GlobalFilter, Ordered {
+public class ApiAuthFilter implements GlobalFilter, Ordered {
 
     @DubboReference
     private InnerUserInterfaceService innerUserInterfaceService;
@@ -63,57 +61,29 @@ public class CustomGlobalFilter implements GlobalFilter, Ordered {
     @Resource
     private RedissonRateLimiterManager rateLimiterManager;
 
-
-    private static final List<String> IP_WHITE_LIST = Arrays.asList("127.0.0.1");
-
-    private static final AntPathMatcher ANT_PATH_MATCHER = new AntPathMatcher();
-
-    /** 管理端业务路径：放行，权限由各服务 @AuthCheck 负责 */
-    private static final List<String> ADMIN_WHITE_LIST = Arrays.asList(
-            "/user/**", "/interfaceInfo/**", "/userInterface/**");
-
-    /** knife4j 文档相关路径，放行不经鉴权 */
-    private static final List<String> DOC_WHITE_LIST = Arrays.asList(
-            "/interfaceInfo/v3/api-docs/**", "/user/v3/api-docs/**", "/userInterface/v3/api-docs/**",
-            "/doc.html", "/webjars/**",
-            "/swagger-resources/**", "/favicon.ico"
-    );
-
-    // 判断路径是否在白名单里
-    private boolean isInWhiteList(String path, List<String> patterns) {
-        return patterns.stream().anyMatch(p -> ANT_PATH_MATCHER.match(p, path));
-    }
-
     @Override
     public Mono<Void> filter(ServerWebExchange exchange, GatewayFilterChain chain) {
-        // 1. 请求日志
         ServerHttpRequest request = exchange.getRequest();
         String path = request.getPath().value();
         String method = request.getMethod().toString();
-        log.info("请求唯一标识：" + request.getId());
-        log.info("请求路径：" + path);
-        log.info("请求方法：" + method);
-        log.info("请求参数：" + request.getQueryParams());
-        // 本地地址：网关自己接收这条连接的本机网卡 IP（比如服务器的 127.0.0.1:8080）
-        String sourceAddress = request.getLocalAddress().getHostString();
-        log.info("请求来源地址：" + sourceAddress);
-        // 远端地址：发起请求的客户端的 IP:端口（比如浏览器/调用方的 192.168.1.100:54321）
-        log.info("请求来源地址：" + request.getRemoteAddress());
 
-        // 文档路径和管理端路径直接放行，不走 AK/SK 鉴权
-        if (isInWhiteList(path, DOC_WHITE_LIST) || isInWhiteList(path, ADMIN_WHITE_LIST)) {
+        // 文档/管理端流量不属于本过滤器，直接放行（已由 AdminTrafficFilter 处理）
+        if (GatewayPathMatcher.isWebOrDocPath(path)) {
             return chain.filter(exchange);
         }
 
         // 拿到响应对象
         ServerHttpResponse response = exchange.getResponse();
-        // 2. 访问控制 -（黑白名单）
-        if (!IP_WHITE_LIST.contains(sourceAddress)) {
-            // 设置响应状态码 403 Forbidden（禁止访问）
-            response.setStatusCode(HttpStatus.FORBIDDEN);
-            // 返回处理完成的响应
-            return response.setComplete();
+        // 2. 访问控制 -（黑白名单）：客户端 IP 需在白名单内
+        String clientIp = request.getRemoteAddress().getAddress().getHostAddress();
+        // 匿名 IP 限流：防无效请求刷网关（鉴权失败的流量也拦得住）
+        boolean allowed = rateLimiterManager.doRateLimit(
+                RateLimitType.IP.getPrefix() + clientIp, 20, 1);
+        if (!allowed) {
+            log.warn("IP 限流: ip={}", clientIp);
+            return handleRateLimit(response);
         }
+
         // 3. 用户鉴权（判断 ak、sk 是否合法）
         // 从请求头中获取名为 "accessKey" 的值
         HttpHeaders headers = request.getHeaders();
@@ -134,6 +104,9 @@ public class CustomGlobalFilter implements GlobalFilter, Ordered {
         try {
             // 调用内部服务，根据密钥访问获取用户信息
             invokeUser = innerUserService.getInvokeUser(accessKey);
+            if (invokeUser == null) {
+                return handleNoAuth(response);
+            }
             boolean userAllowed = rateLimiterManager.doRateLimit(
                     RateLimitType.USER.getPrefix() + invokeUser.getId(), 2, 1
             );
@@ -169,10 +142,19 @@ public class CustomGlobalFilter implements GlobalFilter, Ordered {
         }
 
         // todo 4. 校验时间戳和当前时间的差距，和当前时间不能超过五分钟
+        if (StrUtil.isBlank(timestamp)) {
+            return handleNoAuth(response);
+        }
+        long requestTime;
+        try {
+            requestTime = Long.parseLong(timestamp);
+        } catch (NumberFormatException e) {
+            return handleNoAuth(response);
+        }
         long currentTime = System.currentTimeMillis() / 1000;
-        long requestTime = Long.parseLong(timestamp);
         final long FIVE_MINUTES = 60 * 5L;
-        if ((currentTime - requestTime) >= FIVE_MINUTES) {
+        // 绝对值后，过去超过 5 分钟、未来超过 5 分钟都拒
+        if (Math.abs(currentTime - requestTime) >= FIVE_MINUTES) {
             return handleNoAuth(response);
         }
 
@@ -221,6 +203,7 @@ public class CustomGlobalFilter implements GlobalFilter, Ordered {
             log.error("getInterfaceInfo error", e);
             return handleInvokeError(response);
         }
+
     }
 
     /**
@@ -300,9 +283,8 @@ public class CustomGlobalFilter implements GlobalFilter, Ordered {
         return response.setComplete();
     }
 
-
     @Override
     public int getOrder() {
-        return -1;
+        return 0;
     }
 }

@@ -35,7 +35,7 @@ class MainApplicationTests {
      */
     @Test
     void testRateLimitReject() throws InterruptedException {
-        int threadCount = 10;
+        int threadCount = 30;
         ExecutorService executor = Executors.newFixedThreadPool(threadCount);
         CountDownLatch latch = new CountDownLatch(threadCount);
         AtomicInteger successCount = new AtomicInteger();

@@ -12,6 +12,7 @@ spring:
         server-addr: 127.0.0.1:8848
         username: nacos
         password: nacos
+        ip: 127.0.0.1   # 注册地址与 server.address 保持一致（服务只绑回环）
         metadata:
           context-path: /userInterface
   # mysql

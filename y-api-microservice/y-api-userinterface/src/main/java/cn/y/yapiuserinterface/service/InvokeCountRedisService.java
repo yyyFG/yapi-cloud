@@ -3,6 +3,7 @@ package cn.y.yapiuserinterface.service;
 
 import cn.y.yapiclient.innerservice.InnerUserInterfaceService;
 import cn.y.yapimodel.entity.UserInterface;
+import cn.y.yapiuserinterface.mapper.UserInterfaceMapper;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.UpdateWrapper;
 import lombok.extern.slf4j.Slf4j;
@@ -25,7 +26,7 @@ public class InvokeCountRedisService {
     private RedissonClient redissonClient;
 
     @Resource
-    private UserInterfaceService userInterfaceService;
+    private UserInterfaceMapper userInterfaceMapper;
 
     private RMapCache<String, Long> leftCache;
 
@@ -71,7 +72,7 @@ public class InvokeCountRedisService {
         long userId = Long.parseLong(parts[0]);
         long interfaceId = Long.parseLong(parts[1]);
         // 查 user_interface 表的 leftNum
-        UserInterface userInterface = userInterfaceService.getOne(new QueryWrapper<UserInterface>()
+        UserInterface userInterface = userInterfaceMapper.selectOne(new QueryWrapper<UserInterface>()
                 .eq("userId", userId).eq("interfaceId", interfaceId)
                 .select("leftNum"));
         return userInterface == null ? null : userInterface.getLeftNum().longValue();
@@ -127,7 +128,7 @@ public class InvokeCountRedisService {
                 updateWrapper.eq("userId", userId).eq("interfaceId", interfaceId)
                         .ge("leftNum", delta)
                         .setSql("leftNum = leftNum - " + delta);
-                boolean update = userInterfaceService.update(updateWrapper);
+                boolean update = userInterfaceMapper.update(null, updateWrapper) > 0;
                 if (!update) {
                     deltaMap.addAndGet(key, delta);
                     log.error("invoke count 回写失败，key={}, delta={}", key, delta);

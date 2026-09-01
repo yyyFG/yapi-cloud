@@ -3,13 +3,12 @@ package cn.y.yapiinterface;
 import cn.y.yapicommon.aop.AuthInterceptor;
 import cn.y.yapicommon.aop.LogInterceptor;
 import cn.y.yapicommon.config.MyBatisPlusConfig;
+import cn.y.yapicommon.config.SessionSerializerConfig;
 import cn.y.yapicommon.exception.GlobalExceptionHandler;
-import cn.y.yapicommon.ratelimit.config.RedissonConfig;
 import org.apache.dubbo.config.spring.context.annotation.EnableDubbo;
 import org.mybatis.spring.annotation.MapperScan;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
-import org.springframework.context.annotation.ComponentScan;
 import org.springframework.context.annotation.Import;
 import org.springframework.scheduling.annotation.EnableScheduling;
 
@@ -18,7 +17,7 @@ import org.springframework.scheduling.annotation.EnableScheduling;
 @EnableScheduling
 @MapperScan("cn.y.yapiinterface.mapper")
 @Import({GlobalExceptionHandler.class, AuthInterceptor.class, LogInterceptor.class,
-        MyBatisPlusConfig.class})
+        MyBatisPlusConfig.class, SessionSerializerConfig.class})
 public class YApiInterfaceApplication {
 
     public static void main(String[] args) {

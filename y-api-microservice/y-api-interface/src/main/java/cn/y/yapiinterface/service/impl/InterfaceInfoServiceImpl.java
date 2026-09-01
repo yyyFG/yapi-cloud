@@ -57,6 +57,9 @@ public class InterfaceInfoServiceImpl extends ServiceImpl<InterfaceInfoMapper, I
     @Value("${platform.ssrf.check-enabled:true}")
     private boolean ssrfCheckEnabled;
 
+    // 次数上限 100 万：足以覆盖演示场景，也拦住手滑的超大值
+    private static final int MAX_INVOKE_COUNT = 10_000;
+
     /**
      * 新增接口
      * @param interfaceInfoAddRequest
@@ -374,11 +377,11 @@ public class InterfaceInfoServiceImpl extends ServiceImpl<InterfaceInfoMapper, I
         if (userInterfaceAddRequest.getUserId() == null || userInterfaceAddRequest.getInterfaceId() == null) {
             throw new BusinessException(ErrorCode.PARAMS_ERROR, "参数不能为空");
         }
-        if (userInterfaceAddRequest.getTotalNum() == null || userInterfaceAddRequest.getTotalNum() < 0 ){
+        if (userInterfaceAddRequest.getTotalNum() == null || userInterfaceAddRequest.getTotalNum() < 0 || userInterfaceAddRequest.getTotalNum() > MAX_INVOKE_COUNT){
             throw new BusinessException(ErrorCode.PARAMS_ERROR, "调用次数不合法");
         }
         if (userInterfaceAddRequest.getLeftNum() != null && userInterfaceAddRequest.getLeftNum() > userInterfaceAddRequest.getTotalNum()) {
-            throw new BusinessException(ErrorCode.PARAMS_ERROR, "调用次数不合法");
+            throw new BusinessException(ErrorCode.PARAMS_ERROR, "剩余调用次数不合法");
         } else if (userInterfaceAddRequest.getLeftNum() == null){
             // 未指定剩余次数时，默认等于总次数
             userInterfaceAddRequest.setLeftNum(userInterfaceAddRequest.getTotalNum());
@@ -393,7 +396,8 @@ public class InterfaceInfoServiceImpl extends ServiceImpl<InterfaceInfoMapper, I
             throw new BusinessException(ErrorCode.PARAMS_ERROR, "参数不能为空");
         }
         if (userInterfaceUpdateRequest.getLeftNum() != null && userInterfaceUpdateRequest.getTotalNum() != null
-                && userInterfaceUpdateRequest.getLeftNum() > userInterfaceUpdateRequest.getTotalNum()) {
+                && userInterfaceUpdateRequest.getLeftNum() > userInterfaceUpdateRequest.getTotalNum()
+                && userInterfaceUpdateRequest.getTotalNum() > MAX_INVOKE_COUNT) {
             throw new BusinessException(ErrorCode.PARAMS_ERROR, "调用次数不合法");
         }
         // 校验传入的状态值合法（0-正常，1-禁用）

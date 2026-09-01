@@ -18,5 +18,5 @@ public interface UserInterfaceInfoConstant {
     /**
      * 默认设总调用数
      */
-    Integer USER_INTERFACE_DEFAULT_NUM = 50;
+    Integer USER_INTERFACE_DEFAULT_NUM = 10000;
 }

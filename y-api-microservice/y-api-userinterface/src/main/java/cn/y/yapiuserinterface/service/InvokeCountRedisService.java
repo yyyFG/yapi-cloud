@@ -8,6 +8,7 @@ import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.UpdateWrapper;
 import lombok.extern.slf4j.Slf4j;
 import org.redisson.api.*;
+import org.redisson.client.codec.StringCodec;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
@@ -28,7 +29,7 @@ public class InvokeCountRedisService {
     @Resource
     private UserInterfaceMapper userInterfaceMapper;
 
-    private RMapCache<String, Long> leftCache;
+    private RMap<String, Long> leftCache;
 
     private RMap<String, Long> deltaMap;
 
@@ -60,8 +61,8 @@ public class InvokeCountRedisService {
 
     @PostConstruct
     public void init() {
-        leftCache = redissonClient.getMapCache(LEFT_MAP);
-        deltaMap = redissonClient.getMap(DELTA_MAP);
+        leftCache = redissonClient.getMap(LEFT_MAP, StringCodec.INSTANCE);
+        deltaMap = redissonClient.getMap(DELTA_MAP, StringCodec.INSTANCE);
     }
 
     /**
@@ -95,7 +96,7 @@ public class InvokeCountRedisService {
             leftCache.fastPutIfAbsent(key, dbValue);
         }
         // Lua 原子扣减（检查 + 扣减 + 记差量，一次完成）
-        RScript script = redissonClient.getScript();
+        RScript script = redissonClient.getScript(StringCodec.INSTANCE);
         Long result = script.eval(RScript.Mode.READ_WRITE, DEDUCT_LUA,
                 RScript.ReturnType.INTEGER,
                 Arrays.asList(LEFT_MAP, DELTA_MAP), key);
@@ -112,7 +113,7 @@ public class InvokeCountRedisService {
             if (!lock.tryLock(0, 60, TimeUnit.SECONDS)) {
                 return;
             }
-            RScript script = redissonClient.getScript();
+            RScript script = redissonClient.getScript(StringCodec.INSTANCE);
             for (Map.Entry<String, Long> entry : deltaMap.entrySet()) {
                 String key = entry.getKey();
                 Long delta = script.eval(RScript.Mode.READ_WRITE, TAKE_DELTA_LUA,

@@ -3,6 +3,7 @@ package cn.y.yapicommon.ratelimit.config;
 
 import org.redisson.Redisson;
 import org.redisson.api.RedissonClient;
+import org.redisson.codec.JsonJacksonCodec;
 import org.redisson.config.Config;
 import org.redisson.config.SingleServerConfig;
 import org.springframework.beans.factory.annotation.Value;
@@ -27,7 +28,7 @@ public class RedissonConfig {
 
     @Bean
     public RedissonClient redissonClient() {
-        Config config = new Config();
+        Config config = new Config().setCodec(new JsonJacksonCodec());
         String address = "redis://" + redisHost + ":" + redisPort;
         SingleServerConfig singleServerConfig = config.useSingleServer()
                 .setAddress(address)

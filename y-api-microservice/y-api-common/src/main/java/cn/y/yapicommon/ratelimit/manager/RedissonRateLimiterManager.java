@@ -8,6 +8,7 @@ import org.redisson.api.RedissonClient;
 import org.springframework.stereotype.Component;
 
 import javax.annotation.Resource;
+import java.time.Duration;
 
 @Component
 public class RedissonRateLimiterManager {
@@ -25,6 +26,8 @@ public class RedissonRateLimiterManager {
     public boolean doRateLimit(String key, long rate, long rateInterval) {
         RRateLimiter rateLimiter = redissonClient.getRateLimiter(key);
         rateLimiter.trySetRate(RateType.OVERALL, rate, rateInterval, RateIntervalUnit.SECONDS);
+        // 空间 10 分钟自动清理，持续有请求会不断续期
+        rateLimiter.expire(Duration.ofMinutes(10));
         return rateLimiter.tryAcquire();
     }
 }

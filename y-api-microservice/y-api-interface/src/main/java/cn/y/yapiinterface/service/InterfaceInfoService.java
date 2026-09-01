@@ -66,6 +66,14 @@ public interface InterfaceInfoService extends IService<InterfaceInfo> {
     String invokeInterface(InterfaceInfoInvokeRequest interfaceInfoInvokeRequest, User loginUser);
 
     /**
+     * 将在线调用需要查的接口信息抽离出来做本地缓存
+     * @param url
+     * @param method
+     * @return
+     */
+    InterfaceInfo getInterfaceInfoByUrl(String url, String method);
+
+    /**
      * 根据 path 和 请求方法类型 从数据库中获取完整 url 来转发路由
      * @param path
      * @param method

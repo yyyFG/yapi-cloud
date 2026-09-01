@@ -58,7 +58,7 @@ public class UserInterfaceController {
      * @return
      */
     @PostMapping("/list/page")
-    public BaseResponse<Page<UserInterface>> listInterfaceByPage(@RequestBody UserInterfaceQueryRequest userInterfaceQueryRequest,
+    public BaseResponse<Page<UserInterface>> listUserInterfaceByPage(@RequestBody UserInterfaceQueryRequest userInterfaceQueryRequest,
                                                                  HttpServletRequest request) {
         if (userInterfaceQueryRequest == null || userInterfaceQueryRequest.getId() <= 0) {
             throw new BusinessException(ErrorCode.PARAMS_ERROR);
@@ -67,6 +67,7 @@ public class UserInterfaceController {
         User loginUser = InnerUserService.getLoginUser(request);
         int current = userInterfaceQueryRequest.getCurrent();
         int size = userInterfaceQueryRequest.getPageSize();
+        // 只查自己的
         userInterfaceQueryRequest.setUserId(loginUser.getId());
         Page<UserInterface> interfaceInfoPage = userInterfaceService.page(new Page<>(current, size),
                 userInterfaceService.getQueryWrapper(userInterfaceQueryRequest));
@@ -80,7 +81,7 @@ public class UserInterfaceController {
      */
     @PostMapping("/list/page/admin")
     @AuthCheck(mustRole = UserConstant.ADMIN_ROLE)
-    public BaseResponse<Page<UserInterface>> listInterfaceByPageByAdmin(@RequestBody UserInterfaceQueryRequest userInterfaceQueryRequest) {
+    public BaseResponse<Page<UserInterface>> listUserInterfaceByPageByAdmin(@RequestBody UserInterfaceQueryRequest userInterfaceQueryRequest) {
         int current = userInterfaceQueryRequest.getCurrent();
         int size = userInterfaceQueryRequest.getPageSize();
         Page<UserInterface> interfaceInfoPage = userInterfaceService.page(new Page<>(current, size),

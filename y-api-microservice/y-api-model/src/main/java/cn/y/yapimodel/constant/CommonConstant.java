@@ -1,4 +1,4 @@
-package cn.y.yapicommon.constant;
+package cn.y.yapimodel.constant;
 
 /**
  * 通用常量

@@ -1,6 +1,6 @@
-package cn.y.yapicommon.common;
+package cn.y.yapimodel.common;
 
-import cn.y.yapicommon.constant.CommonConstant;
+import cn.y.yapimodel.constant.CommonConstant;
 import lombok.Data;
 
 /**

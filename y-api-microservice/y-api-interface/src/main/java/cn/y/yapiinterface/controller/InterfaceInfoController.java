@@ -8,6 +8,8 @@ import cn.y.yapicommon.common.*;
 import cn.y.yapicommon.constant.UserConstant;
 import cn.y.yapicommon.exception.BusinessException;
 import cn.y.yapicommon.exception.ThrowUtils;
+import cn.y.yapicommon.ratelimit.annotation.RateLimit;
+import cn.y.yapicommon.ratelimit.enums.RateLimitType;
 import cn.y.yapimodel.dto.interfaceInfo.InterfaceInfoAddRequest;
 import cn.y.yapimodel.dto.interfaceInfo.InterfaceInfoInvokeRequest;
 import cn.y.yapimodel.dto.interfaceInfo.InterfaceInfoQueryRequest;
@@ -21,6 +23,7 @@ import cn.y.yapiinterface.service.InterfaceInfoService;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.dubbo.config.annotation.DubboReference;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RestController;
@@ -105,6 +108,11 @@ public class InterfaceInfoController {
      * @return
      */
     @PostMapping("/list/page")
+    @Cacheable(
+            value = "interface_info_page",
+            key = "T(cn.y.yapicommon.utils.CacheKeyUtils).generateKey(#interfaceInfoQueryRequest)",
+            condition = "#interfaceInfoQueryRequest.current <= 10"
+    )
     public BaseResponse<Page<InterfaceInfo>> listInterfaceByPage(@RequestBody InterfaceInfoQueryRequest interfaceInfoQueryRequest,
                                                        HttpServletRequest request) {
         if (interfaceInfoQueryRequest == null || interfaceInfoQueryRequest.getId() <= 0) {
@@ -190,6 +198,7 @@ public class InterfaceInfoController {
      * @return
      */
     @PostMapping("/invoke")
+    @RateLimit(limitType = RateLimitType.SERVICE, rate = 100, rateInterval = 60, message = "请求过于频繁，请稍后再试")
     public BaseResponse<String> invokeInterface(@RequestBody InterfaceInfoInvokeRequest interfaceInfoInvokeRequest,
                                                   HttpServletRequest request) {
         if (interfaceInfoInvokeRequest == null) {

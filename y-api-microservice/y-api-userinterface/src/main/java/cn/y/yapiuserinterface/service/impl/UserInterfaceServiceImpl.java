@@ -1,20 +1,17 @@
 package cn.y.yapiuserinterface.service.impl;
 
 import cn.hutool.core.bean.BeanUtil;
-import cn.y.yapiclient.innerservice.InnerInterfaceInfoService;
 import cn.y.yapiclient.innerservice.InnerUserService;
 import cn.y.yapicommon.common.DeleteRequest;
 import cn.y.yapicommon.common.ErrorCode;
-import cn.y.yapicommon.constant.CommonConstant;
+import cn.y.yapimodel.constant.CommonConstant;
 import cn.y.yapicommon.constant.UserInterfaceInfoConstant;
 import cn.y.yapicommon.exception.BusinessException;
 import cn.y.yapicommon.utils.SqlUtils;
 import cn.y.yapiuserinterface.mapper.UserInterfaceMapper;
 import cn.y.yapimodel.dto.userinterface.UserInterfaceAddRequest;
-import cn.y.yapimodel.dto.userinterface.UserInterfaceApplyRequest;
 import cn.y.yapimodel.dto.userinterface.UserInterfaceQueryRequest;
 import cn.y.yapimodel.dto.userinterface.UserInterfaceUpdateRequest;
-import cn.y.yapimodel.entity.InterfaceInfo;
 import cn.y.yapimodel.entity.User;
 import cn.y.yapimodel.entity.UserInterface;
 import cn.y.yapiuserinterface.service.InvokeCountRedisService;
@@ -30,7 +27,6 @@ import javax.annotation.Resource;
 
 import java.util.Date;
 
-import static cn.y.yapimodel.enums.InterfaceStatusEnum.PUBLISH;
 import static cn.y.yapimodel.enums.UserRoleEnum.BAN;
 
 

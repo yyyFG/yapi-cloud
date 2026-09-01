@@ -12,7 +12,7 @@ import cn.y.yapiclient.innerservice.InnerUserInterfaceService;
 import cn.y.yapicommon.common.DeleteRequest;
 import cn.y.yapicommon.common.ErrorCode;
 import cn.y.yapicommon.common.IdRequest;
-import cn.y.yapicommon.constant.CommonConstant;
+import cn.y.yapimodel.constant.CommonConstant;
 import cn.y.yapicommon.constant.UserInterfaceInfoConstant;
 import cn.y.yapicommon.exception.BusinessException;
 import cn.y.yapiinterface.mapper.InterfaceInfoMapper;
@@ -34,8 +34,12 @@ import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.dubbo.config.annotation.DubboReference;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Cacheable;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 
+import javax.annotation.Resource;
 import java.net.URI;
 import java.util.Objects;
 
@@ -60,12 +64,17 @@ public class InterfaceInfoServiceImpl extends ServiceImpl<InterfaceInfoMapper, I
     // 次数上限 100 万：足以覆盖演示场景，也拦住手滑的超大值
     private static final int MAX_INVOKE_COUNT = 10_000;
 
+    @Lazy
+    @Resource
+    private InterfaceInfoService self;
+
     /**
      * 新增接口
      * @param interfaceInfoAddRequest
      * @param loginUser
      * @return
      */
+    @CacheEvict(cacheNames = "interfaceInfo", allEntries = true)
     @Override
     public Boolean addInterfaceInfo(InterfaceInfoAddRequest interfaceInfoAddRequest, User loginUser) {
         if (StrUtil.isBlank(interfaceInfoAddRequest.getInterfaceName())) {
@@ -119,6 +128,7 @@ public class InterfaceInfoServiceImpl extends ServiceImpl<InterfaceInfoMapper, I
      * @param loginUser
      * @return
      */
+    @CacheEvict(cacheNames = "interfaceInfo", allEntries = true)
     @Override
     public Boolean updateInterfaceInfo(InterfaceInfoUpdateRequest interfaceInfoUpdateRequest, User loginUser) {
         Long id = interfaceInfoUpdateRequest.getId();
@@ -185,6 +195,7 @@ public class InterfaceInfoServiceImpl extends ServiceImpl<InterfaceInfoMapper, I
      * @param loginUser
      * @return
      */
+    @CacheEvict(cacheNames = "interfaceInfo", allEntries = true)
     @Override
     public Boolean deleteInterface(DeleteRequest deleteRequest, User loginUser) {
         InterfaceInfo interfaceInfo = this.getById(deleteRequest.getId());
@@ -205,6 +216,7 @@ public class InterfaceInfoServiceImpl extends ServiceImpl<InterfaceInfoMapper, I
      * @param loginUser
      * @return
      */
+    @CacheEvict(cacheNames = "interfaceInfo", allEntries = true)
     @Override
     public Boolean publishInterface(IdRequest idRequest, User loginUser) {
         // 去数据库查看该接口是否存在
@@ -262,6 +274,7 @@ public class InterfaceInfoServiceImpl extends ServiceImpl<InterfaceInfoMapper, I
      * @param loginUser
      * @return
      */
+    @CacheEvict(cacheNames = "interfaceInfo", allEntries = true)
     @Override
     public Boolean offlineInterface(DeleteRequest deleteRequest, User loginUser) {
         InterfaceInfo interfaceInfo = this.getById(deleteRequest.getId());
@@ -312,9 +325,7 @@ public class InterfaceInfoServiceImpl extends ServiceImpl<InterfaceInfoMapper, I
         if (StrUtil.isBlank(method)) {
             throw new BusinessException(ErrorCode.PARAMS_ERROR, "请求方法类型不能为空");
         }
-        QueryWrapper<InterfaceInfo> queryWrapper = new QueryWrapper<>();
-        queryWrapper.eq("url", url).eq("method", method.toUpperCase());
-        InterfaceInfo interfaceInfo = this.getOne(queryWrapper);
+        InterfaceInfo interfaceInfo = self.getInterfaceInfoByUrl(url, method);
         // 判断接口是否存在
         if (interfaceInfo == null) {
             throw new BusinessException(ErrorCode.NOT_FOUND_ERROR, "接口不存在");
@@ -364,6 +375,14 @@ public class InterfaceInfoServiceImpl extends ServiceImpl<InterfaceInfoMapper, I
         }
     }
 
+    @Cacheable(cacheNames = "interfaceInfo", key = "'url:' + #url + ':' + #method")
+    @Override
+    public InterfaceInfo getInterfaceInfoByUrl(String url, String method) {
+        QueryWrapper<InterfaceInfo> queryWrapper = new QueryWrapper<>();
+        queryWrapper.eq("url", url).eq("method", method.toUpperCase());
+        return this.getOne(queryWrapper);
+    }
+
     @Override
     public Boolean applyInterface(UserInterfaceApplyRequest userInterfaceApplyRequest, User loginUser) {
         Long interfaceId = userInterfaceApplyRequest.getInterfaceId();
@@ -410,6 +429,7 @@ public class InterfaceInfoServiceImpl extends ServiceImpl<InterfaceInfoMapper, I
         return innerUserInterfaceService.updateUserInterface(userInterfaceUpdateRequest);
     }
 
+    @Cacheable(cacheNames = "interfaceInfo", key = "#path + ':' + #method")
     @Override
     public InterfaceInfo getInterfaceInfo(String path, String method) {
         if (StrUtil.isBlank(path)) {

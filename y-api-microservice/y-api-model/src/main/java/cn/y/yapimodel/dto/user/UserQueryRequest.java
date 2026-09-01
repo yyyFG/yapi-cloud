@@ -1,6 +1,6 @@
 package cn.y.yapimodel.dto.user;
 
-import cn.y.yapicommon.common.PageRequest;
+import cn.y.yapimodel.common.PageRequest;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 

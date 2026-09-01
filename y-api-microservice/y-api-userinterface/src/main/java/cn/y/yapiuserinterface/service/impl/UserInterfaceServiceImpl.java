@@ -17,6 +17,7 @@ import cn.y.yapimodel.dto.userinterface.UserInterfaceUpdateRequest;
 import cn.y.yapimodel.entity.InterfaceInfo;
 import cn.y.yapimodel.entity.User;
 import cn.y.yapimodel.entity.UserInterface;
+import cn.y.yapiuserinterface.service.InvokeCountRedisService;
 import cn.y.yapiuserinterface.service.UserInterfaceService;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.UpdateWrapper;
@@ -43,6 +44,9 @@ public class UserInterfaceServiceImpl extends ServiceImpl<UserInterfaceMapper, U
 
     @DubboReference
     private InnerUserService innerUserService;
+
+    @Resource
+    private InvokeCountRedisService invokeCountRedisService;
 
     @Override
     public Boolean addUserInterface(UserInterfaceAddRequest userInterfaceAddRequest) {
@@ -137,18 +141,29 @@ public class UserInterfaceServiceImpl extends ServiceImpl<UserInterfaceMapper, U
 
     @Override
     public Boolean invokeCount(long interfaceId, long userId) {
-        //接口、用户的校验已经在前面的方法调用中校验过了
-        // todo 后面引入 redis
-        UpdateWrapper<UserInterface> updateWrapper = new UpdateWrapper<>();
-        updateWrapper.eq("userId", userId).eq("interfaceId", interfaceId)
-                .gt("leftNum", 0)
-                .setSql("leftNum = leftNum - 1");
-        boolean update = this.update(updateWrapper);
-        if (!update) {
-            // ③ 影响 0 行：checkInvokable 通过后、调用期间被并发耗尽
-            throw new BusinessException(ErrorCode.NO_AUTH_ERROR, "剩余调用次数不足");
+        try {
+            int result = invokeCountRedisService.deduct(userId, interfaceId);
+            if (result == -1) {
+                throw new BusinessException(ErrorCode.NOT_FOUND_ERROR, "还未申请调用此接口，请先申请");
+            }
+            if (result == 0) {
+                throw new BusinessException(ErrorCode.NO_AUTH_ERROR, "剩余调用次数不足");
+            }
+            return true;
+        } catch (Exception e) {
+            log.error("Redis 扣减失败，降级为 DB 扣减, userId={}, interfaceId={}", userId, interfaceId, e);
+            //接口、用户的校验已经在前面的方法调用中校验过了
+            UpdateWrapper<UserInterface> updateWrapper = new UpdateWrapper<>();
+            updateWrapper.eq("userId", userId).eq("interfaceId", interfaceId)
+                    .gt("leftNum", 0)
+                    .setSql("leftNum = leftNum - 1");
+            boolean update = this.update(updateWrapper);
+            if (!update) {
+                // 影响 0 行：checkInvokable 通过后、调用期间被并发耗尽
+                throw new BusinessException(ErrorCode.NO_AUTH_ERROR, "剩余调用次数不足");
+            }
+            return true;
         }
-        return true;
     }
 
     @Override

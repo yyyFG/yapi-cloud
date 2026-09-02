@@ -2,6 +2,10 @@ package cn.y.yapiclient.innerservice;
 
 import cn.y.yapimodel.dto.userinterface.UserInterfaceAddRequest;
 import cn.y.yapimodel.dto.userinterface.UserInterfaceUpdateRequest;
+import cn.y.yapimodel.entity.UserInterface;
+
+import java.util.List;
+import java.util.Map;
 
 /**
  * 用户接口调用服务内部调用
@@ -46,4 +50,13 @@ public interface InnerUserInterfaceService {
      */
     boolean updateUserInterface(UserInterfaceUpdateRequest userInterfaceUpdateRequest);
 
+    /**
+     * 查询用户申请过的所有接口调用记录
+     */
+    List<UserInterface> listUserInterfaceByUserId(long userId);
+
+    /**
+     * 统计指定接口集合的申请人数（按 interfaceId 分组）
+     */
+    Map<Long, Long> countApplicants(List<Long> interfaceIds);
 }

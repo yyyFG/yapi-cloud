@@ -11,6 +11,9 @@ import cn.y.yapimodel.entity.UserInterface;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.extension.service.IService;
 
+import java.util.List;
+import java.util.Map;
+
 /**
  * 用户接口调用关系服务
 */
@@ -71,4 +74,21 @@ public interface UserInterfaceService extends IService<UserInterface> {
      * @return
      */
     Boolean invokeCount(long interfaceId, long userId);
+
+    /**
+     * 查询用户在指定接口集合上的调用记录
+     */
+    List<UserInterface> listUserInterface(long userId, List<Long> interfaceIds);
+
+    /**
+     * 查询用户申请过的所有接口调用记录
+     */
+    List<UserInterface> listUserInterfaceByUserId(long userId);
+
+
+    /**
+     * 统计指定接口集合的申请人数（按 interfaceId 分组）
+     */
+    Map<Long, Long> countApplicants(List<Long> interfaceIds);
+
 }

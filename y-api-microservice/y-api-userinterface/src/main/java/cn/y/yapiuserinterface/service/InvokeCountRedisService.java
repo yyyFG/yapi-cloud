@@ -140,7 +140,7 @@ public class InvokeCountRedisService {
                 UpdateWrapper<UserInterface> updateWrapper = new UpdateWrapper<>();
                 updateWrapper.eq("userId", userId).eq("interfaceId", interfaceId)
                         .ge("leftNum", delta)
-                        .setSql("leftNum = leftNum - " + delta);
+                        .setSql("leftNum = leftNum - " + delta + ", totalNum = totalNum + " + delta);
                 boolean update = userInterfaceMapper.update(null, updateWrapper) > 0;
                 if (!update) {
                     deltaMap.addAndGet(key, delta);

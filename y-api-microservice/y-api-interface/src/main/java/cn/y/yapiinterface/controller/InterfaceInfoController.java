@@ -20,16 +20,22 @@ import cn.y.yapimodel.dto.userinterface.UserInterfaceUpdateRequest;
 import cn.y.yapimodel.entity.InterfaceInfo;
 import cn.y.yapimodel.entity.User;
 import cn.y.yapiinterface.service.InterfaceInfoService;
+import cn.y.yapimodel.vo.InterfaceInfoVO;
+import cn.y.yapimodel.vo.InterfaceRankVO;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.dubbo.config.annotation.DubboReference;
 import org.springframework.cache.annotation.Cacheable;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RestController;
 
 import javax.annotation.Resource;
 import javax.servlet.http.HttpServletRequest;
+import java.util.List;
+
+import static cn.y.yapicommon.constant.UserInterfaceInfoConstant.USER_INTERFACE_OK;
 
 
 /**
@@ -102,7 +108,7 @@ public class InterfaceInfoController {
     }
 
     /**
-     * 分页获取接口封装列表
+     * 分页获取已发布的接口封装列表
      * @param interfaceInfoQueryRequest
      * @param request
      * @return
@@ -121,6 +127,7 @@ public class InterfaceInfoController {
         User loginUser = InnerUserService.getLoginUser(request);
         int current = interfaceInfoQueryRequest.getCurrent();
         int size = interfaceInfoQueryRequest.getPageSize();
+        interfaceInfoQueryRequest.setStatus(USER_INTERFACE_OK);
         // 限制爬虫
         ThrowUtils.throwIf(size > 20, ErrorCode.PARAMS_ERROR);
         Page<InterfaceInfo> interfaceInfoPage = interfaceInfoService.page(new Page<>(current, size),
@@ -230,6 +237,44 @@ public class InterfaceInfoController {
         }
         return ResultUtils.success(true);
     }
+
+
+    /**
+     * 获取当前用户创建的接口
+     * @param request
+     * @return
+     */
+    @GetMapping("/hadCreate")
+    public BaseResponse<List<InterfaceInfoVO>> listInterfaceCreate(HttpServletRequest request) {
+        User loginUser = InnerUserService.getLoginUser(request);
+        List<InterfaceInfoVO> interfaceInfoVOS = interfaceInfoService.listInterfaceCreate(loginUser);
+        return ResultUtils.success(interfaceInfoVOS);
+
+    }
+
+    /**
+     * 获取当前用户申请的接口
+     * @param request
+     * @return
+     */
+    @GetMapping("/hadApply")
+    public BaseResponse<List<InterfaceInfoVO>> listUserInterfaceApply(HttpServletRequest request) {
+        User loginUser = InnerUserService.getLoginUser(request);
+        List<InterfaceInfoVO> interfaceInfoVOS = interfaceInfoService.listUserInterfaceApply(loginUser);
+        return ResultUtils.success(interfaceInfoVOS);
+    }
+
+    /**
+     * 接口调用排行榜 Top N
+     * @param request
+     * @return
+     */
+    @GetMapping("/rank")
+    public BaseResponse<List<InterfaceRankVO>> listInterfaceRank(HttpServletRequest request) {
+        InnerUserService.getLoginUser(request);
+        return ResultUtils.success(interfaceInfoService.listInterfaceRank(15));
+    }
+
 
     /**
      * 新增用户接口调用关系

@@ -30,7 +30,7 @@ public class UserInterface implements Serializable {
     private Long interfaceId;
 
     /**
-     * 总调用次数
+     * 总调用次数，用来记录接口的调用次数
      */
     private Integer totalNum;
 

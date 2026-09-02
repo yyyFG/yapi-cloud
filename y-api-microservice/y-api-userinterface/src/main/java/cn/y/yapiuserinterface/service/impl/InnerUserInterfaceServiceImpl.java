@@ -9,6 +9,8 @@ import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import org.apache.dubbo.config.annotation.DubboService;
 
 import javax.annotation.Resource;
+import java.util.List;
+import java.util.Map;
 
 /**
  * 用户接口调用服务内部调用实现
@@ -42,6 +44,17 @@ public class InnerUserInterfaceServiceImpl implements InnerUserInterfaceService 
     @Override
     public boolean updateUserInterface(UserInterfaceUpdateRequest userInterfaceUpdateRequest) {
         return userInterfaceService.updateUserInterface(userInterfaceUpdateRequest);
+    }
+
+
+    @Override
+    public List<UserInterface> listUserInterfaceByUserId(long userId) {
+        return userInterfaceService.listUserInterfaceByUserId(userId);
+    }
+
+    @Override
+    public Map<Long, Long> countApplicants(List<Long> interfaceIds) {
+        return userInterfaceService.countApplicants(interfaceIds);
     }
 }
 

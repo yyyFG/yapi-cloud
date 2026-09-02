@@ -25,8 +25,9 @@ import org.springframework.stereotype.Service;
 
 import javax.annotation.Resource;
 
-import java.util.Date;
+import java.util.*;
 
+import static cn.y.yapicommon.constant.UserInterfaceInfoConstant.USER_INTERFACE_DEFAULT_NUM;
 import static cn.y.yapimodel.enums.UserRoleEnum.BAN;
 
 
@@ -74,9 +75,8 @@ public class UserInterfaceServiceImpl extends ServiceImpl<UserInterfaceMapper, U
         if (userInterface == null) {
             throw new BusinessException(ErrorCode.NOT_FOUND_ERROR, "用户接口调用信息不存在");
         }
-        if (userInterfaceUpdateRequest.getTotalNum() == null && userInterfaceUpdateRequest.getLeftNum() != null
-                && userInterfaceUpdateRequest.getLeftNum() > userInterface.getTotalNum()) {
-            throw new BusinessException(ErrorCode.PARAMS_ERROR, "新增的剩余接口调用次数不能大于原总数接口调用次数");
+        if (userInterfaceUpdateRequest.getLeftNum() != null && userInterfaceUpdateRequest.getLeftNum() > USER_INTERFACE_DEFAULT_NUM) {
+            throw new BusinessException(ErrorCode.PARAMS_ERROR, "新增的剩余接口调用次数不能大于默认次数");
         }
         BeanUtil.copyProperties(userInterfaceUpdateRequest, userInterface);
         userInterface.setUpdateTime(new Date());
@@ -106,9 +106,9 @@ public class UserInterfaceServiceImpl extends ServiceImpl<UserInterfaceMapper, U
         UserInterface userInterface = new UserInterface();
         userInterface.setUserId(userId);
         userInterface.setInterfaceId(interfaceId);
-        // 默认总调用数
-        userInterface.setTotalNum(UserInterfaceInfoConstant.USER_INTERFACE_DEFAULT_NUM);
-        userInterface.setLeftNum(UserInterfaceInfoConstant.USER_INTERFACE_DEFAULT_NUM);
+        // 默认总调用数为0，剩余调用次数为 10000
+        userInterface.setTotalNum(0);
+        userInterface.setLeftNum(USER_INTERFACE_DEFAULT_NUM);
         userInterface.setStatus(UserInterfaceInfoConstant.USER_INTERFACE_OK);
 
         return this.save(userInterface);
@@ -152,7 +152,7 @@ public class UserInterfaceServiceImpl extends ServiceImpl<UserInterfaceMapper, U
             UpdateWrapper<UserInterface> updateWrapper = new UpdateWrapper<>();
             updateWrapper.eq("userId", userId).eq("interfaceId", interfaceId)
                     .gt("leftNum", 0)
-                    .setSql("leftNum = leftNum - 1");
+                    .setSql("leftNum = leftNum - 1, totalNum = totalNum + 1");
             boolean update = this.update(updateWrapper);
             if (!update) {
                 // 影响 0 行：checkInvokable 通过后、调用期间被并发耗尽
@@ -160,6 +160,39 @@ public class UserInterfaceServiceImpl extends ServiceImpl<UserInterfaceMapper, U
             }
             return true;
         }
+    }
+
+    @Override
+    public List<UserInterface> listUserInterface(long userId, List<Long> interfaceIds) {
+        if (interfaceIds == null || interfaceIds.isEmpty()) {
+            return Collections.emptyList();
+        }
+        return this.list(new QueryWrapper<UserInterface>()
+                .eq("userId", userId)
+                .in("interfaceId", interfaceIds));
+    }
+
+    @Override
+    public List<UserInterface> listUserInterfaceByUserId(long userId) {
+        return this.list(new QueryWrapper<UserInterface>().eq("userId", userId));
+    }
+
+    @Override
+    public Map<Long, Long> countApplicants(List<Long> interfaceIds) {
+        if (interfaceIds == null || interfaceIds.isEmpty()) {
+            return Collections.emptyMap();
+        }
+        List<Map<String, Object>> rows = listMaps(new QueryWrapper<UserInterface>()
+                .select("interfaceId", "COUNT(*) AS applicantCount")
+                .in("interfaceId", interfaceIds)
+                .groupBy("interfaceId"));
+        Map<Long, Long> result = new HashMap<>();
+        for (Map<String, Object> row : rows) {
+            Long interfaceId = Long.valueOf(row.get("interfaceId").toString());
+            Long count = Long.valueOf(row.get("applicantCount").toString());
+            result.put(interfaceId, count);
+        }
+        return result;
     }
 
     @Override

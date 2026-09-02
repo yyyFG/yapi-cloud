@@ -7,6 +7,7 @@ import cn.y.yapiclient.innerservice.InnerInterfaceInfoService;
 import cn.y.yapiclient.innerservice.InnerUserInterfaceService;
 import cn.y.yapiclient.innerservice.InnerUserService;
 import cn.y.yapiclientsdk.utils.SignUtils;
+import cn.y.yapicommon.constant.RedisKeyConstant;
 import cn.y.yapicommon.exception.BusinessException;
 import cn.y.yapicommon.ratelimit.enums.RateLimitType;
 import cn.y.yapicommon.ratelimit.manager.RedissonRateLimiterManager;
@@ -253,6 +254,8 @@ public class ApiAuthFilter implements GlobalFilter, Ordered {
                                     try {
                                         // 调用内部用户接口信息服务，记录接口调用次数
                                         innerUserInterfaceService.invokeCount(interfaceInfoId, userId);
+                                        stringRedisTemplate.opsForZSet().incrementScore(
+                                                RedisKeyConstant.INTERFACE_RANK_KEY, String.valueOf(interfaceInfoId), 1);
                                     } catch (Exception e) {
                                         log.error("invokeCount error", e);
                                     }

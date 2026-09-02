@@ -11,8 +11,12 @@ import cn.y.yapimodel.dto.userinterface.UserInterfaceApplyRequest;
 import cn.y.yapimodel.dto.userinterface.UserInterfaceUpdateRequest;
 import cn.y.yapimodel.entity.InterfaceInfo;
 import cn.y.yapimodel.entity.User;
+import cn.y.yapimodel.vo.InterfaceInfoVO;
+import cn.y.yapimodel.vo.InterfaceRankVO;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.extension.service.IService;
+
+import java.util.List;
 
 /**
  * 接口服务
@@ -82,13 +86,32 @@ public interface InterfaceInfoService extends IService<InterfaceInfo> {
     InterfaceInfo getInterfaceInfo(String path, String method);
 
     /**
+     * 获取当前用户创建的接口
+     * @param loginUser
+     * @return
+     */
+    List<InterfaceInfoVO> listInterfaceCreate(User loginUser);
+
+    /**
+     * 获取当前用户申请的接口
+     * @param loginUser
+     * @return
+     */
+    List<InterfaceInfoVO> listUserInterfaceApply(User loginUser);
+
+    /**
+     * 实现排行榜
+     * @param topN
+     * @return
+     */
+    List<InterfaceRankVO> listInterfaceRank(int topN);
+
+    /**
      * 获取查询条件
-     *
      * @param interfaceInfoQueryRequest
      * @return
      */
     QueryWrapper<InterfaceInfo> getQueryWrapper(InterfaceInfoQueryRequest interfaceInfoQueryRequest);
-
 
     /**
      * 申请接口(解耦)

@@ -12,6 +12,7 @@ import cn.y.yapiclient.innerservice.InnerUserInterfaceService;
 import cn.y.yapicommon.common.DeleteRequest;
 import cn.y.yapicommon.common.ErrorCode;
 import cn.y.yapicommon.common.IdRequest;
+import cn.y.yapicommon.constant.RedisKeyConstant;
 import cn.y.yapimodel.constant.CommonConstant;
 import cn.y.yapicommon.constant.UserInterfaceInfoConstant;
 import cn.y.yapicommon.exception.BusinessException;
@@ -27,6 +28,9 @@ import cn.y.yapimodel.entity.InterfaceInfo;
 import cn.y.yapimodel.entity.User;
 import cn.y.yapiinterface.service.InterfaceInfoService;
 import cn.y.yapicommon.utils.SqlUtils;
+import cn.y.yapimodel.entity.UserInterface;
+import cn.y.yapimodel.vo.InterfaceInfoVO;
+import cn.y.yapimodel.vo.InterfaceRankVO;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.UpdateWrapper;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
@@ -36,14 +40,20 @@ import org.apache.dubbo.config.annotation.DubboReference;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
+import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Lazy;
+import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.data.redis.core.ZSetOperations;
 import org.springframework.stereotype.Service;
 
 import javax.annotation.Resource;
 import java.net.URI;
-import java.util.Objects;
+import java.util.*;
+import java.util.stream.Collectors;
 
 import static cn.y.yapicommon.constant.UserConstant.ADMIN_ROLE;
+import static cn.y.yapicommon.constant.UserInterfaceInfoConstant.USER_INTERFACE_DEFAULT_NUM;
+import static cn.y.yapicommon.constant.UserInterfaceInfoConstant.USER_INTERFACE_OK;
 import static cn.y.yapimodel.enums.InterfaceStatusEnum.*;
 
 /**
@@ -61,12 +71,12 @@ public class InterfaceInfoServiceImpl extends ServiceImpl<InterfaceInfoMapper, I
     @Value("${platform.ssrf.check-enabled:true}")
     private boolean ssrfCheckEnabled;
 
-    // 次数上限 100 万：足以覆盖演示场景，也拦住手滑的超大值
-    private static final int MAX_INVOKE_COUNT = 10_000;
-
     @Lazy
     @Resource
     private InterfaceInfoService self;
+
+    @Resource
+    private StringRedisTemplate stringRedisTemplate;
 
     /**
      * 新增接口
@@ -359,6 +369,13 @@ public class InterfaceInfoServiceImpl extends ServiceImpl<InterfaceInfoMapper, I
                 if (!b) {
                     throw new BusinessException(ErrorCode.SYSTEM_ERROR, "扣除接口调用次数失败");
                 }
+                // 在线调试成功且真实扣减了额度 → 计入排行榜（与网关 SDK 调用共用同一 ZSet）
+                try {
+                    stringRedisTemplate.opsForZSet().incrementScore(
+                            RedisKeyConstant.INTERFACE_RANK_KEY, String.valueOf(interfaceInfo.getId()), 1);
+                } catch (Exception e) {
+                    log.error("排行榜计数失败, interfaceId={}", interfaceInfo.getId(), e);
+                }
             }
             String result = httpResponse.body();
             log.info("用户 {} 调用接口 {}，响应: {}", loginUser.getUserAccount(), interfaceInfo.getInterfaceName(), result);
@@ -396,14 +413,11 @@ public class InterfaceInfoServiceImpl extends ServiceImpl<InterfaceInfoMapper, I
         if (userInterfaceAddRequest.getUserId() == null || userInterfaceAddRequest.getInterfaceId() == null) {
             throw new BusinessException(ErrorCode.PARAMS_ERROR, "参数不能为空");
         }
-        if (userInterfaceAddRequest.getTotalNum() == null || userInterfaceAddRequest.getTotalNum() < 0 || userInterfaceAddRequest.getTotalNum() > MAX_INVOKE_COUNT){
-            throw new BusinessException(ErrorCode.PARAMS_ERROR, "调用次数不合法");
-        }
-        if (userInterfaceAddRequest.getLeftNum() != null && userInterfaceAddRequest.getLeftNum() > userInterfaceAddRequest.getTotalNum()) {
+        if (userInterfaceAddRequest.getLeftNum() != null && userInterfaceAddRequest.getLeftNum() < 0) {
             throw new BusinessException(ErrorCode.PARAMS_ERROR, "剩余调用次数不合法");
         } else if (userInterfaceAddRequest.getLeftNum() == null){
-            // 未指定剩余次数时，默认等于总次数
-            userInterfaceAddRequest.setLeftNum(userInterfaceAddRequest.getTotalNum());
+            // 未指定剩余次数时，默认剩余调用次数为 10000
+            userInterfaceAddRequest.setLeftNum(USER_INTERFACE_DEFAULT_NUM);
         }
         validateInterface(userInterfaceAddRequest.getInterfaceId());
         return innerUserInterfaceService.addUserInterface(userInterfaceAddRequest);
@@ -414,14 +428,12 @@ public class InterfaceInfoServiceImpl extends ServiceImpl<InterfaceInfoMapper, I
         if (userInterfaceUpdateRequest.getUserId() == null || userInterfaceUpdateRequest.getInterfaceId() == null) {
             throw new BusinessException(ErrorCode.PARAMS_ERROR, "参数不能为空");
         }
-        if (userInterfaceUpdateRequest.getLeftNum() != null && userInterfaceUpdateRequest.getTotalNum() != null
-                && userInterfaceUpdateRequest.getLeftNum() > userInterfaceUpdateRequest.getTotalNum()
-                && userInterfaceUpdateRequest.getTotalNum() > MAX_INVOKE_COUNT) {
-            throw new BusinessException(ErrorCode.PARAMS_ERROR, "调用次数不合法");
+        if (userInterfaceUpdateRequest.getLeftNum() != null && userInterfaceUpdateRequest.getLeftNum() < 0) {
+            throw new BusinessException(ErrorCode.PARAMS_ERROR, "剩余调用次数不合法");
         }
         // 校验传入的状态值合法（0-正常，1-禁用）
         Integer newStatus = userInterfaceUpdateRequest.getStatus();
-        if (newStatus != null && !UserInterfaceInfoConstant.USER_INTERFACE_OK.equals(newStatus)
+        if (newStatus != null && !USER_INTERFACE_OK.equals(newStatus)
                 && !UserInterfaceInfoConstant.USER_INTERFACE_BAN.equals(newStatus)) {
             throw new BusinessException(ErrorCode.PARAMS_ERROR, "接口调用状态不合法");
         }
@@ -457,6 +469,85 @@ public class InterfaceInfoServiceImpl extends ServiceImpl<InterfaceInfoMapper, I
     }
 
     @Override
+    public List<InterfaceInfoVO> listInterfaceCreate(User loginUser) {
+        Long userId = loginUser.getId();
+        QueryWrapper<InterfaceInfo> interfaceInfoQueryWrapper = new QueryWrapper<>();
+        interfaceInfoQueryWrapper.eq("userId", userId);
+        List<InterfaceInfo> interfaceList = list(interfaceInfoQueryWrapper);
+        if (interfaceList.isEmpty()) {
+            return Collections.emptyList();
+        }
+        List<Long> interfaceIds = interfaceList.stream().map(InterfaceInfo::getId).collect(Collectors.toList());
+        // 统计每个接口的申请人数
+        Map<Long, Long> applicantCountMap = innerUserInterfaceService.countApplicants(interfaceIds);
+        return interfaceList.stream()
+                .map(interfaceInfo -> {
+                    InterfaceInfoVO interfaceInfoVO = new InterfaceInfoVO();
+                    BeanUtil.copyProperties(interfaceInfo, interfaceInfoVO);
+                    // 没人申请的接口给 0，而不是 null
+                    interfaceInfoVO.setApplicantCount(applicantCountMap.getOrDefault(interfaceInfo.getId(), 0L));
+                    return interfaceInfoVO;
+                })
+                .collect(Collectors.toList());
+    }
+
+    @Override
+    public List<InterfaceInfoVO> listUserInterfaceApply(User loginUser) {
+        Long userId = loginUser.getId();
+        List<UserInterface> userInterfaceList = innerUserInterfaceService.listUserInterfaceByUserId(userId);
+        if (userInterfaceList.isEmpty()) {
+            return Collections.emptyList();
+        }
+        List<Long> interfaceIds = userInterfaceList.stream()
+                .map(UserInterface::getInterfaceId)
+                .collect(Collectors.toList());
+        Map<Long, InterfaceInfo> interfaceInfoMap = listByIds(interfaceIds).stream()
+                .collect(Collectors.toMap(InterfaceInfo::getId, i -> i));
+        return userInterfaceList.stream()
+                .map(userInterface -> {
+                    InterfaceInfo interfaceInfo = interfaceInfoMap.get(userInterface.getId());
+                    if (interfaceInfo == null) {
+                        return null;
+                    }
+                    InterfaceInfoVO interfaceInfoVO = new InterfaceInfoVO();
+                    BeanUtil.copyProperties(interfaceInfo, interfaceInfoVO);
+                    interfaceInfoVO.setLeftNum(userInterface.getLeftNum());
+                    interfaceInfoVO.setTotalNum(userInterface.getTotalNum());
+                    return interfaceInfoVO;
+                })
+                .filter(Objects::nonNull)
+                .collect(Collectors.toList());
+    }
+
+
+    @Override
+    public List<InterfaceRankVO> listInterfaceRank(int topN) {
+        Set<ZSetOperations.TypedTuple<String>> tuples = stringRedisTemplate.opsForZSet()
+                .reverseRangeWithScores(RedisKeyConstant.INTERFACE_RANK_KEY, 0, topN - 1);
+        if (tuples == null || tuples.isEmpty()) {
+            return Collections.emptyList();
+        }
+        List<Long> ids = tuples.stream()
+                .map(t -> Long.valueOf(Objects.requireNonNull(t.getValue())))
+                .collect(Collectors.toList());
+        Map<Long, InterfaceInfo> infoMap = listByIds(ids).stream()
+                .collect(Collectors.toMap(InterfaceInfo::getId, i -> i));
+        List<InterfaceRankVO> result = new ArrayList<>();
+        for (ZSetOperations.TypedTuple<String> t : tuples) {
+            InterfaceInfo interfaceInfo = infoMap.get(Long.valueOf(t.getValue()));
+            if (interfaceInfo == null) {
+                // 接口已删除，跳过
+                continue;
+            }
+            InterfaceRankVO interfaceRankVO = new InterfaceRankVO();
+            BeanUtil.copyProperties(interfaceInfo, interfaceRankVO);
+            interfaceRankVO.setInvokeCount(t.getScore().longValue());
+            result.add(interfaceRankVO);
+        }
+        return result;
+    }
+
+    @Override
     public QueryWrapper<InterfaceInfo> getQueryWrapper(InterfaceInfoQueryRequest interfaceInfoQueryRequest) {
         if (interfaceInfoQueryRequest == null) {
             throw new BusinessException(ErrorCode.PARAMS_ERROR, "请求参数为空");
@@ -467,6 +558,7 @@ public class InterfaceInfoServiceImpl extends ServiceImpl<InterfaceInfoMapper, I
         String requestHeader = interfaceInfoQueryRequest.getRequestHeader();
         String requestParams = interfaceInfoQueryRequest.getRequestParams();
         String responseHeader = interfaceInfoQueryRequest.getResponseHeader();
+        Integer status = interfaceInfoQueryRequest.getStatus();
         String url = interfaceInfoQueryRequest.getUrl();
         String path = interfaceInfoQueryRequest.getPath();
         String method = interfaceInfoQueryRequest.getMethod();
@@ -480,6 +572,7 @@ public class InterfaceInfoServiceImpl extends ServiceImpl<InterfaceInfoMapper, I
         queryWrapper.eq(id != null, "id", id);
         queryWrapper.eq(StringUtils.isNotBlank(method), "method", method);
         queryWrapper.eq(userId != null, "userId", userId);
+        queryWrapper.eq(status != null, "status", status);
         queryWrapper.like(StringUtils.isNotBlank(requestHeader), "requestHeader", requestHeader);
         queryWrapper.like(StringUtils.isNotBlank(requestParams), "requestParams", requestParams);
         queryWrapper.like(StringUtils.isNotBlank(responseHeader), "responseHeader", responseHeader);

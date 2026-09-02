@@ -35,6 +35,10 @@ public class CaffRedisCache implements Cache {
     public ValueWrapper get(Object key) {
         ValueWrapper wrapper = local.get(key);
         if (wrapper != null) {
+            return wrapper;
+        }
+        wrapper = remote.get(key);
+        if (wrapper != null) {
             Object value = wrapper.get();
             if (value != null) {
                 local.put(key, value);   // Redis 命中，回填本地

@@ -10,9 +10,9 @@
         <relativePath/> <!-- lookup parent from repository -->
     </parent>
     <groupId>cn.y</groupId>
-    <artifactId>springboot-yapi</artifactId>
+    <artifactId>y-api-backend</artifactId>
     <version>0.0.1-SNAPSHOT</version>
-    <name>springboot-yapi</name>
+    <name>y-api-backend</name>
     <properties>
         <java.version>1.8</java.version>
     </properties>

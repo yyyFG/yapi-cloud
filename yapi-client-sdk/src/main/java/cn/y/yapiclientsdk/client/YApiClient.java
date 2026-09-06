@@ -84,7 +84,7 @@ public class YApiClient {
         httpRequest.addHeaders(getHeaderMap(url, method, requestParams));
 
         // 执行请求
-        HttpResponse httpResponse = httpRequest.execute();
+        HttpResponse httpResponse = httpRequest.timeout(5000).execute();
 
         String result = httpResponse.body();
         int status = httpResponse.getStatus();

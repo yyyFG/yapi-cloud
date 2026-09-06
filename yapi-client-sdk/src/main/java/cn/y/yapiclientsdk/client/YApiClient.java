@@ -36,31 +36,6 @@ public class YApiClient {
         this.secretKey = secretKey;
     }
 
-    // 使用 GET 方法从服务器获取名称信息
-    public String getNameByGet(String name) {
-        // 可以单独传入 http 参数，这样参数会自动做 URL 编码，拼接在 URL 中
-        HashMap<String, Object> paramMap = new HashMap<>();
-        // 将 name 参数添加到映射中
-        paramMap.put("name", name);
-        // 使用 HttpUtil 工具发起 GET 请求，并获取服务器返回的结果
-        String result = HttpUtil.get("http://localhost:8123/api/name/", paramMap);
-        // 打印服务器返回的结果
-        System.out.println(result);
-        // 返回服务器返回的结果
-        return result;
-    }
-
-    // 使用 POST 方法从服务器获取名称信息
-    public String getNameByPost(String name) {
-        // 可以单独传入 http 参数，这样参数会自动做 URL 编码，拼接在 URL 中
-        HashMap<String, Object> paramMap = new HashMap<>();
-        paramMap.put("name", name);
-        // 使用 HttpUtil 工具发起 POST 请求，并获取服务器返回的结果
-        String result = HttpUtil.post("http://localhost:8123/api/name/post", paramMap);
-        System.out.println(result);
-        return result;
-    }
-
     // 创建私有方法，用于构造请求头
     private Map<String, String> getHeaderMap(String url, String method, String body) {
         // 创建一个新的 HashMap 对象

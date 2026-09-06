@@ -4,6 +4,7 @@ package cn.y.yapiinterface.controller;
 
 import cn.y.yapiclientsdk.model.User;
 import cn.y.yapiclientsdk.utils.SignUtils;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.web.bind.annotation.*;
 
 import javax.servlet.http.HttpServletRequest;
@@ -17,6 +18,7 @@ import java.util.Set;
  */
 @RestController
 @RequestMapping("/name")
+@Slf4j
 public class NameController {
 
     // hashSet 用来存随机数
@@ -24,6 +26,7 @@ public class NameController {
 
     @GetMapping("/get")
     public String getNameByGet(@RequestParam String name) {
+        log.info(name);
         return "GET 你的名字是：" + name;
     }
 

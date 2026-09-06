@@ -13,6 +13,7 @@ create table if not exists `interface_info`
     `status` tinyint default 0 not null comment '接口状态（0-关闭，1-发布。2-管理员下架）',
     `method` varchar(16) not null comment '请求类型',
     `userId` bigint not null comment '创建人',
+    `invokeCount` int null default 0 comment '接口调用次数',
     `createTime` datetime default CURRENT_TIMESTAMP not null comment '创建时间',
     `updateTime` datetime default CURRENT_TIMESTAMP not null on update CURRENT_TIMESTAMP comment '更新时间',
     `isDelete` tinyint default 0 not null comment '是否删除(0-未删, 1-已删)',

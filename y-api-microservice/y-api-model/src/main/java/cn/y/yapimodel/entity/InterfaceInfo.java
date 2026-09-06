@@ -70,6 +70,11 @@ public class InterfaceInfo implements Serializable {
     private Long userId;
 
     /**
+     * 接口调用次数
+     */
+    private Integer invokeCount;
+
+    /**
      * 创建时间
      */
     private Date createTime;

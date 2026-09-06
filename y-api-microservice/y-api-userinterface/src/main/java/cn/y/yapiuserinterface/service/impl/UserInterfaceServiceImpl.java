@@ -146,6 +146,7 @@ public class UserInterfaceServiceImpl extends ServiceImpl<UserInterfaceMapper, U
             if (result == 0) {
                 throw new BusinessException(ErrorCode.NO_AUTH_ERROR, "剩余调用次数不足");
             }
+            invokeCountRedisService.incrInterfaceRank(interfaceId);
             return true;
         } catch (Exception e) {
             log.error("Redis 扣减失败，降级为 DB 扣减, userId={}, interfaceId={}", userId, interfaceId, e);

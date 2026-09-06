@@ -75,6 +75,11 @@ public class InterfaceInfoVO implements Serializable {
     private Long userId;
 
     /**
+     * 接口调用次数
+     */
+    private Integer invokeCount;
+
+    /**
      * 创建时间
      */
     private LocalDateTime createTime;

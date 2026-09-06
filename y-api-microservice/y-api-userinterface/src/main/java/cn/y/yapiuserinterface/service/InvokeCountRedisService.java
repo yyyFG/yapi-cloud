@@ -2,6 +2,7 @@ package cn.y.yapiuserinterface.service;
 
 
 import cn.y.yapiclient.innerservice.InnerUserInterfaceService;
+import cn.y.yapicommon.constant.RedisKeyConstant;
 import cn.y.yapimodel.entity.UserInterface;
 import cn.y.yapiuserinterface.mapper.UserInterfaceMapper;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
@@ -114,6 +115,13 @@ public class InvokeCountRedisService {
                 Arrays.asList(LEFT_MAP, DELTA_MAP), key);
         return result == null ? 0 : result.intValue();
     }
+
+    public void incrInterfaceRank(long interfaceId) {
+        RScoredSortedSet<String> rankSet = redissonClient.getScoredSortedSet(
+                RedisKeyConstant.INTERFACE_RANK_KEY, StringCodec.INSTANCE);
+        rankSet.addScore(String.valueOf(interfaceId), 1);
+    }
+
 
     /**
      * 定时任务：每 5 分钟把差量批量回写 DB

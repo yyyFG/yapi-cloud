@@ -254,8 +254,6 @@ public class ApiAuthFilter implements GlobalFilter, Ordered {
                                     try {
                                         // 调用内部用户接口信息服务，记录接口调用次数
                                         innerUserInterfaceService.invokeCount(interfaceInfoId, userId);
-                                        stringRedisTemplate.opsForZSet().incrementScore(
-                                                RedisKeyConstant.INTERFACE_RANK_KEY, String.valueOf(interfaceInfoId), 1);
                                     } catch (Exception e) {
                                         log.error("invokeCount error", e);
                                     }

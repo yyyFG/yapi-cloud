@@ -23,6 +23,12 @@ import org.springframework.context.annotation.Configuration;
 @Data
 public class CosClientConfig {
 
+
+    /**
+     * 域名
+     */
+    private String host;
+
     /**
      * accessKey
      */

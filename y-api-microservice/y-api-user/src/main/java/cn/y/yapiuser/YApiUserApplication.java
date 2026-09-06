@@ -4,11 +4,13 @@ import cn.y.yapicommon.aop.AuthInterceptor;
 import cn.y.yapicommon.aop.LogInterceptor;
 import cn.y.yapicommon.cache.CaffRedisCacheConfig;
 import cn.y.yapicommon.cache.LocalCacheConfig;
+import cn.y.yapicommon.config.CosClientConfig;
 import cn.y.yapicommon.config.MyBatisPlusConfig;
 import cn.y.yapicommon.config.JsonConfig;
 import cn.y.yapicommon.cache.RedisCacheManagerConfig;
 import cn.y.yapicommon.config.SessionSerializerConfig;
 import cn.y.yapicommon.exception.GlobalExceptionHandler;
+import cn.y.yapicommon.manager.CosManager;
 import org.apache.dubbo.config.spring.context.annotation.EnableDubbo;
 import org.mybatis.spring.annotation.MapperScan;
 import org.springframework.boot.SpringApplication;
@@ -20,7 +22,8 @@ import org.springframework.context.annotation.Import;
 @MapperScan("cn.y.yapiuser.mapper")
 @Import({GlobalExceptionHandler.class, AuthInterceptor.class, LogInterceptor.class,
         MyBatisPlusConfig.class, SessionSerializerConfig.class, LocalCacheConfig.class,
-        RedisCacheManagerConfig.class, CaffRedisCacheConfig.class, JsonConfig.class})
+        RedisCacheManagerConfig.class, CaffRedisCacheConfig.class, JsonConfig.class,
+        CosClientConfig.class, CosManager.class})
 public class YApiUserApplication {
 
     public static void main(String[] args) {

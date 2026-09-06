@@ -100,7 +100,7 @@ public class CosManager {
 
             if (result != null) {
                 // 构建访问URL
-                String url = String.format("https://" + "%s%s", cosClientConfig.getHost(), cosKey);
+                String url = String.format("https://" + "%s/%s", cosClientConfig.getHost(), cosKey);
                 log.info("文件上传COS成功：{} -> {}", file.getName(), url);
                 return url;
             } else {

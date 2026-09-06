@@ -40,6 +40,13 @@ server:
       cookie:
         max-age: 2592000
         path: /
+cos:
+  client:
+    host: xxx
+    accessKey: xxx
+    secretKey: xxx
+    region: xxx
+    bucket: xxx
 mybatis-plus:
   configuration:
     map-underscore-to-camel-case: false

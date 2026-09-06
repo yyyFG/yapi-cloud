@@ -94,8 +94,8 @@
         <h2 class="cta-title">准备好把你的应用接入强大接口了吗？</h2>
         <p class="cta-desc">浏览、调用、构建，从 YAPI 接口开放平台开始。</p>
         <div class="cta-actions">
-          <a-button type="primary" size="large" class="btn-primary" @click="scrollTo('rank')">
-            查看热门接口
+          <a-button type="primary" size="large" class="btn-primary" @click="router.push('/interfaces')">
+            查看接口市场
             <template #icon>
               <ArrowRightOutlined />
             </template>
@@ -111,6 +111,7 @@
 
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
+import { useRouter } from 'vue-router'
 import {
   ApiOutlined,
   ArrowRightOutlined,
@@ -120,6 +121,9 @@ import {
   TrophyOutlined,
 } from '@ant-design/icons-vue'
 import { listInterfaceRank } from '@/api/interfaceInfoController.ts'
+
+// 路由实例（底部 CTA 按钮跳转接口市场用）
+const router = useRouter()
 
 // 特性卡片内容
 const features = [

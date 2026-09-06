@@ -139,8 +139,22 @@
         <a-form-item label="用户名">
           <a-input v-model:value="editForm.userName" placeholder="请输入用户名" :maxlength="20" />
         </a-form-item>
-        <a-form-item label="头像链接">
-          <a-input v-model:value="editForm.userAvatar" placeholder="请输入头像图片 URL" />
+        <a-form-item label="头像">
+          <a-upload accept="image/*" :show-upload-list="false" :custom-request="onAvatarUpload">
+            <div class="avatar-uploader">
+              <img
+                v-if="editForm.userAvatar"
+                :src="editForm.userAvatar"
+                alt="头像预览"
+                class="avatar-preview"
+              />
+              <div v-else class="avatar-uploader-placeholder">
+                <PlusOutlined />
+                <span>点击上传</span>
+              </div>
+            </div>
+          </a-upload>
+          <div class="avatar-upload-tip">选择图片后自动上传，点击「确定」保存修改</div>
         </a-form-item>
         <a-form-item label="个人简介">
           <a-textarea
@@ -211,6 +225,7 @@ import { message } from 'ant-design-vue'
 import { EditOutlined, PlusOutlined, UserOutlined } from '@ant-design/icons-vue'
 import { userLoginUserStore } from '@/stores/loginUser.ts'
 import { updateMyUser } from '@/api/userController.ts'
+import { imageUpload } from '@/api/imageController.ts'
 import {
   addInterfaceInfo,
   deleteInterface,
@@ -447,6 +462,25 @@ const openEdit = () => {
   editVisible.value = true
 }
 
+// 头像上传（a-upload 的 custom-request）：调 imageUpload，不走 action 直连后端
+const onAvatarUpload = async ({ file, onSuccess, onError }: any) => {
+  try {
+    const res = await imageUpload(file)
+    if (res.data.code === 0) {
+      // 上传成功：把返回的图片 URL 写入表单，提交时才保存到后端
+      editForm.userAvatar = res.data.data
+      onSuccess?.(res.data, file)
+      message.success('头像上传成功')
+    } else {
+      onError?.(new Error(res.data.message ?? '头像上传失败'))
+      message.error(res.data.message ?? '头像上传失败')
+    }
+  } catch (error: any) {
+    onError?.(error)
+    message.error('头像上传失败，请重试')
+  }
+}
+
 const handleEditSubmit = async () => {
   if (!editForm.userName?.trim()) {
     message.warning('用户名不能为空')
@@ -621,6 +655,48 @@ onMounted(async () => {
 
 .edit-form {
   margin-top: 8px;
+}
+
+/* 头像上传区域（点击上传） */
+.avatar-uploader {
+  width: 96px;
+  height: 96px;
+  border: 1px dashed #bfdbfe;
+  border-radius: 12px;
+  background: #eff6ff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  overflow: hidden;
+  transition: all 0.25s ease;
+}
+
+.avatar-uploader:hover {
+  border-color: #2563eb;
+  background: #dbeafe;
+}
+
+.avatar-uploader-placeholder {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  color: #2563eb;
+  font-size: 12px;
+}
+
+.avatar-preview {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.avatar-upload-tip {
+  margin-top: 6px;
+  font-size: 12px;
+  color: #94a3b8;
 }
 
 @media (max-width: 768px) {

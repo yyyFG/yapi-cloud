@@ -3,8 +3,13 @@ package cn.y.yapiclient.innerservice;
 import cn.y.yapicommon.common.ErrorCode;
 import cn.y.yapicommon.exception.BusinessException;
 import cn.y.yapimodel.entity.User;
+import cn.y.yapimodel.vo.LoginUserVO;
 
 import javax.servlet.http.HttpServletRequest;
+
+import java.io.Serializable;
+import java.util.Collection;
+import java.util.List;
 
 import static cn.y.yapicommon.constant.UserConstant.USER_LOGIN_STATE;
 
@@ -12,6 +17,20 @@ import static cn.y.yapicommon.constant.UserConstant.USER_LOGIN_STATE;
  * 用户服务内部调用
  */
 public interface InnerUserService {
+
+    /**
+     * 获取用户列表
+     * @param ids
+     * @return
+     */
+    List<User> listByIds(Collection<? extends Serializable> ids);
+
+    /**
+     * 获取脱敏用户
+     * @param user
+     * @return
+     */
+    LoginUserVO getUserVO(User user);
 
     /**
      * 根据 id 获取 user

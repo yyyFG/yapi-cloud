@@ -15,8 +15,4 @@ public interface UserInterfaceInfoConstant {
      */
     Integer USER_INTERFACE_BAN = 1;
 
-    /**
-     * 默认剩余调用数
-     */
-    Integer USER_INTERFACE_DEFAULT_NUM = 10000;
 }

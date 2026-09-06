@@ -13,9 +13,9 @@ public class InterfaceInfoInvokeRequest implements Serializable {
     private static final long serialVersionUID = 1L;
 
     /**
-     * 请求地址
+     * 请求路径
      */
-    private String url;
+    private String path;
 
     /**
      * 请求方法类型

@@ -1,5 +1,6 @@
 package cn.y.yapicommon.cache;
 
+import com.fasterxml.jackson.annotation.JsonTypeInfo;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import org.springframework.context.annotation.Bean;
@@ -28,6 +29,12 @@ public class RedisCacheManagerConfig {
         // 配置 ObjectMapper 支持 Java8 时间类型
         ObjectMapper objectMapper = new ObjectMapper();
         objectMapper.registerModule(new JavaTimeModule());
+        // 传自定义 ObjectMapper 时 GenericJackson2JsonRedisSerializer 不会自动开启 default typing，
+        // 必须手动开启，否则反序列化得到 LinkedHashMap 而非原实体（ClassCastException）
+        objectMapper.activateDefaultTyping(
+                objectMapper.getPolymorphicTypeValidator(),
+                ObjectMapper.DefaultTyping.NON_FINAL,
+                JsonTypeInfo.As.PROPERTY);
 
         // 默认配置
         RedisCacheConfiguration defaultConfig = RedisCacheConfiguration.defaultCacheConfig()

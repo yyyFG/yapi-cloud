@@ -5,6 +5,7 @@ import cn.y.yapicommon.aop.LogInterceptor;
 import cn.y.yapicommon.cache.CaffRedisCacheConfig;
 import cn.y.yapicommon.cache.LocalCacheConfig;
 import cn.y.yapicommon.config.MyBatisPlusConfig;
+import cn.y.yapicommon.config.JsonConfig;
 import cn.y.yapicommon.cache.RedisCacheManagerConfig;
 import cn.y.yapicommon.config.SessionSerializerConfig;
 import cn.y.yapicommon.exception.GlobalExceptionHandler;
@@ -19,7 +20,7 @@ import org.springframework.context.annotation.Import;
 @MapperScan("cn.y.yapiuser.mapper")
 @Import({GlobalExceptionHandler.class, AuthInterceptor.class, LogInterceptor.class,
         MyBatisPlusConfig.class, SessionSerializerConfig.class, LocalCacheConfig.class,
-        RedisCacheManagerConfig.class, CaffRedisCacheConfig.class})
+        RedisCacheManagerConfig.class, CaffRedisCacheConfig.class, JsonConfig.class})
 public class YApiUserApplication {
 
     public static void main(String[] args) {

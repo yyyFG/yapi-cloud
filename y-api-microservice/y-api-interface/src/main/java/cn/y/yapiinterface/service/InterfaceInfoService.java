@@ -75,7 +75,7 @@ public interface InterfaceInfoService extends IService<InterfaceInfo> {
      * @param method
      * @return
      */
-    InterfaceInfo getInterfaceInfoByUrl(String url, String method);
+    InterfaceInfo getInterfaceInfoByPath(String url, String method);
 
     /**
      * 根据 path 和 请求方法类型 从数据库中获取完整 url 来转发路由
@@ -98,6 +98,20 @@ public interface InterfaceInfoService extends IService<InterfaceInfo> {
      * @return
      */
     List<InterfaceInfoVO> listUserInterfaceApply(User loginUser);
+
+    /**
+     * 获取接口列表
+     * @param interfaceList
+     * @return
+     */
+    List<InterfaceInfoVO> getInterfaceVOList(List<InterfaceInfo> interfaceList);
+
+    /**
+     * 获取脱敏接口
+     * @param interfaceInfo
+     * @return
+     */
+    InterfaceInfoVO getinterfaceInfoVo(InterfaceInfo interfaceInfo);
 
     /**
      * 实现排行榜

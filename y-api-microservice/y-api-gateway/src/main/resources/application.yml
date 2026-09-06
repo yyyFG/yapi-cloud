@@ -25,6 +25,14 @@ spring:
           uri: http://localhost:8123
           predicates:
             - Path=/api/**
+      globalcors:
+        cors-configurations:
+          '[/**]':
+            allowedOriginPatterns: "*"
+            allowedMethods: "*"
+            allowedHeaders: "*"
+            allowCredentials: true
+            exposedHeaders: "*"
     nacos:
       discovery:
         server-addr: 127.0.0.1:8848

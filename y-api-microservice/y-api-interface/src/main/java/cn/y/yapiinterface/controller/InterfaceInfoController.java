@@ -1,7 +1,6 @@
 package cn.y.yapiinterface.controller;
 
-
-import cn.y.yapiclient.innerservice.InnerUserInterfaceService;
+import cn.hutool.core.bean.BeanUtil;
 import cn.y.yapiclient.innerservice.InnerUserService;
 import cn.y.yapicommon.annotation.AuthCheck;
 import cn.y.yapicommon.common.*;
@@ -20,22 +19,19 @@ import cn.y.yapimodel.dto.userinterface.UserInterfaceUpdateRequest;
 import cn.y.yapimodel.entity.InterfaceInfo;
 import cn.y.yapimodel.entity.User;
 import cn.y.yapiinterface.service.InterfaceInfoService;
+import cn.y.yapimodel.enums.InterfaceStatusEnum;
 import cn.y.yapimodel.vo.InterfaceInfoVO;
 import cn.y.yapimodel.vo.InterfaceRankVO;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.dubbo.config.annotation.DubboReference;
 import org.springframework.cache.annotation.Cacheable;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 
 import javax.annotation.Resource;
 import javax.servlet.http.HttpServletRequest;
+import java.util.ArrayList;
 import java.util.List;
 
-import static cn.y.yapicommon.constant.UserInterfaceInfoConstant.USER_INTERFACE_OK;
 
 
 /**
@@ -107,6 +103,19 @@ public class InterfaceInfoController {
         return ResultUtils.success(true);
     }
 
+    @GetMapping("/getInterface/{id}")
+    public BaseResponse<InterfaceInfoVO> getInterfaceById(@PathVariable("id") Long id,
+                                                          HttpServletRequest request) {
+        User loginUser = InnerUserService.getLoginUser(request);
+        if (id == null || id < 0) {
+            throw new BusinessException(ErrorCode.PARAMS_ERROR, "接口id错误");
+        }
+        InterfaceInfo interfaceInfo = interfaceInfoService.getById(id);
+        InterfaceInfoVO interfaceInfoVO = new InterfaceInfoVO();
+        BeanUtil.copyProperties(interfaceInfo, interfaceInfoVO);
+        return ResultUtils.success(interfaceInfoVO);
+    }
+
     /**
      * 分页获取已发布的接口封装列表
      * @param interfaceInfoQueryRequest
@@ -119,21 +128,23 @@ public class InterfaceInfoController {
             key = "T(cn.y.yapicommon.utils.CacheKeyUtils).generateKey(#interfaceInfoQueryRequest)",
             condition = "#interfaceInfoQueryRequest.current <= 10"
     )
-    public BaseResponse<Page<InterfaceInfo>> listInterfaceByPage(@RequestBody InterfaceInfoQueryRequest interfaceInfoQueryRequest,
+    public BaseResponse<Page<InterfaceInfoVO>> listInterfaceByPage(@RequestBody InterfaceInfoQueryRequest interfaceInfoQueryRequest,
                                                        HttpServletRequest request) {
-        if (interfaceInfoQueryRequest == null || interfaceInfoQueryRequest.getId() <= 0) {
+        if (interfaceInfoQueryRequest == null) {
             throw new BusinessException(ErrorCode.PARAMS_ERROR);
         }
         User loginUser = InnerUserService.getLoginUser(request);
         int current = interfaceInfoQueryRequest.getCurrent();
         int size = interfaceInfoQueryRequest.getPageSize();
-        interfaceInfoQueryRequest.setStatus(USER_INTERFACE_OK);
+        interfaceInfoQueryRequest.setStatus(InterfaceStatusEnum.PUBLISH.getValue());
         // 限制爬虫
         ThrowUtils.throwIf(size > 20, ErrorCode.PARAMS_ERROR);
         Page<InterfaceInfo> interfaceInfoPage = interfaceInfoService.page(new Page<>(current, size),
                 interfaceInfoService.getQueryWrapper(interfaceInfoQueryRequest));
-
-        return ResultUtils.success(interfaceInfoPage);
+        Page<InterfaceInfoVO> interfaceInfoVOPage = new Page<>(current, size, interfaceInfoPage.getTotal());
+        List<InterfaceInfoVO> interfaceVOList = interfaceInfoService.getInterfaceVOList(interfaceInfoPage.getRecords());
+        interfaceInfoVOPage.setRecords(interfaceVOList);
+        return ResultUtils.success(interfaceInfoVOPage);
     }
 
     /**

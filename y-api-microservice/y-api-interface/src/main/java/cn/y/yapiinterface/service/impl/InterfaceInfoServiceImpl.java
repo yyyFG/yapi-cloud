@@ -1,6 +1,7 @@
 package cn.y.yapiinterface.service.impl;
 
 import cn.hutool.core.bean.BeanUtil;
+import cn.hutool.core.collection.CollUtil;
 import cn.hutool.core.lang.Validator;
 import cn.hutool.core.net.NetUtil;
 import cn.hutool.core.util.StrUtil;
@@ -9,6 +10,7 @@ import cn.hutool.http.HttpException;
 import cn.hutool.http.HttpRequest;
 import cn.hutool.http.HttpResponse;
 import cn.y.yapiclient.innerservice.InnerUserInterfaceService;
+import cn.y.yapiclient.innerservice.InnerUserService;
 import cn.y.yapicommon.common.DeleteRequest;
 import cn.y.yapicommon.common.ErrorCode;
 import cn.y.yapicommon.common.IdRequest;
@@ -31,6 +33,7 @@ import cn.y.yapicommon.utils.SqlUtils;
 import cn.y.yapimodel.entity.UserInterface;
 import cn.y.yapimodel.vo.InterfaceInfoVO;
 import cn.y.yapimodel.vo.InterfaceRankVO;
+import cn.y.yapimodel.vo.LoginUserVO;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.UpdateWrapper;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
@@ -52,7 +55,6 @@ import java.util.*;
 import java.util.stream.Collectors;
 
 import static cn.y.yapicommon.constant.UserConstant.ADMIN_ROLE;
-import static cn.y.yapicommon.constant.UserInterfaceInfoConstant.USER_INTERFACE_DEFAULT_NUM;
 import static cn.y.yapicommon.constant.UserInterfaceInfoConstant.USER_INTERFACE_OK;
 import static cn.y.yapimodel.enums.InterfaceStatusEnum.*;
 
@@ -68,6 +70,9 @@ public class InterfaceInfoServiceImpl extends ServiceImpl<InterfaceInfoMapper, I
     @DubboReference
     private InnerUserInterfaceService innerUserInterfaceService;
 
+    @DubboReference
+    private InnerUserService innerUserService;
+
     @Value("${platform.ssrf.check-enabled:true}")
     private boolean ssrfCheckEnabled;
 
@@ -77,6 +82,8 @@ public class InterfaceInfoServiceImpl extends ServiceImpl<InterfaceInfoMapper, I
 
     @Resource
     private StringRedisTemplate stringRedisTemplate;
+
+    private static final Integer USER_INTERFACE_DEFAULT_NUM = 10000;
 
     /**
      * 新增接口
@@ -324,18 +331,19 @@ public class InterfaceInfoServiceImpl extends ServiceImpl<InterfaceInfoMapper, I
     @Override
     public String invokeInterface(InterfaceInfoInvokeRequest interfaceInfoInvokeRequest, User loginUser) {
         // 获取参数
-        String url = interfaceInfoInvokeRequest.getUrl();
+        String path = interfaceInfoInvokeRequest.getPath();
         String method = interfaceInfoInvokeRequest.getMethod();
         // 请求参数可以为空
         String requestParams = interfaceInfoInvokeRequest.getRequestParams();
         // 校验接口地址是否合法
-        if (StrUtil.isNotBlank(url) && !Validator.isUrl(url)) {
-            throw new BusinessException(ErrorCode.PARAMS_ERROR, "接口地址不能为空或格式不正确");
+        if (StrUtil.isBlank(path)) {
+            throw new BusinessException(ErrorCode.PARAMS_ERROR, "接口地址不能为空");
         }
         if (StrUtil.isBlank(method)) {
             throw new BusinessException(ErrorCode.PARAMS_ERROR, "请求方法类型不能为空");
         }
-        InterfaceInfo interfaceInfo = self.getInterfaceInfoByUrl(url, method);
+
+        InterfaceInfo interfaceInfo = self.getInterfaceInfoByPath(path, method);
         // 判断接口是否存在
         if (interfaceInfo == null) {
             throw new BusinessException(ErrorCode.NOT_FOUND_ERROR, "接口不存在");
@@ -392,11 +400,11 @@ public class InterfaceInfoServiceImpl extends ServiceImpl<InterfaceInfoMapper, I
         }
     }
 
-    @Cacheable(cacheNames = "interfaceInfo", key = "'url:' + #url + ':' + #method")
+    @Cacheable(cacheNames = "interfaceInfo", key = "'path:' + #path + ':' + #method")
     @Override
-    public InterfaceInfo getInterfaceInfoByUrl(String url, String method) {
+    public InterfaceInfo getInterfaceInfoByPath(String path, String method) {
         QueryWrapper<InterfaceInfo> queryWrapper = new QueryWrapper<>();
-        queryWrapper.eq("url", url).eq("method", method.toUpperCase());
+        queryWrapper.eq("path", path).eq("method", method.toUpperCase());
         return this.getOne(queryWrapper);
     }
 
@@ -505,7 +513,7 @@ public class InterfaceInfoServiceImpl extends ServiceImpl<InterfaceInfoMapper, I
                 .collect(Collectors.toMap(InterfaceInfo::getId, i -> i));
         return userInterfaceList.stream()
                 .map(userInterface -> {
-                    InterfaceInfo interfaceInfo = interfaceInfoMap.get(userInterface.getId());
+                    InterfaceInfo interfaceInfo = interfaceInfoMap.get(userInterface.getInterfaceId());
                     if (interfaceInfo == null) {
                         return null;
                     }
@@ -517,6 +525,43 @@ public class InterfaceInfoServiceImpl extends ServiceImpl<InterfaceInfoMapper, I
                 })
                 .filter(Objects::nonNull)
                 .collect(Collectors.toList());
+    }
+
+    @Override
+    public List<InterfaceInfoVO> getInterfaceVOList(List<InterfaceInfo> interfaceList) {
+        if (CollUtil.isEmpty(interfaceList)) {
+            return Collections.emptyList();
+        }
+        // 批量获取用户信息，避免 N+1 查询问题
+        Set<Long> interfaceIds = interfaceList.stream()
+                .map(InterfaceInfo::getId)
+                .collect(Collectors.toSet());
+        Map<Long, LoginUserVO> userVOMap = innerUserService.listByIds(interfaceIds).stream()
+                .collect(Collectors.toMap(User::getId, innerUserService::getUserVO));
+
+        return interfaceList.stream().map(interfaceInfo -> {
+            InterfaceInfoVO interfaceInfoVO = getinterfaceInfoVo(interfaceInfo);
+            LoginUserVO loginUserVO = userVOMap.get(interfaceInfoVO.getUserId());
+            interfaceInfoVO.setUser(loginUserVO);
+            return interfaceInfoVO;
+        }).collect(Collectors.toList());
+    }
+
+    @Override
+    public InterfaceInfoVO getinterfaceInfoVo(InterfaceInfo interfaceInfo) {
+        if (interfaceInfo == null) {
+            return null;
+        }
+        InterfaceInfoVO interfaceInfoVO = new InterfaceInfoVO();
+        BeanUtil.copyProperties(interfaceInfo, interfaceInfoVO);
+        // 关联用户信息
+        if (interfaceInfo.getId() != null) {
+            User user = innerUserService.getById(interfaceInfo.getUserId());
+            LoginUserVO userVO = innerUserService.getUserVO(user);
+            interfaceInfoVO.setUser(userVO);
+        }
+
+        return interfaceInfoVO;
     }
 
 

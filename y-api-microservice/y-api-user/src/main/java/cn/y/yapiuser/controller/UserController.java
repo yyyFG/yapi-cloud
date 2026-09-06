@@ -31,7 +31,6 @@ import static cn.y.yapiuser.service.impl.UserServiceImpl.SALT;
 /**
  * 用户接口
  */
-@Tag(name = "用户管理")
 @RestController
 @Slf4j
 public class UserController {
@@ -47,7 +46,6 @@ public class UserController {
      * @param userRegisterRequest
      * @return
      */
-    @Tag(name = "用户注册")
     @PostMapping("/register")
     public BaseResponse<Long> userRegister(@RequestBody UserRegisterRequest userRegisterRequest) {
         if (userRegisterRequest == null) {

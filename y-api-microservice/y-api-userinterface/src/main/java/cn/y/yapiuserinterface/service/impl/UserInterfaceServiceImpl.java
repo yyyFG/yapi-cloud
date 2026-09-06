@@ -27,7 +27,6 @@ import javax.annotation.Resource;
 
 import java.util.*;
 
-import static cn.y.yapicommon.constant.UserInterfaceInfoConstant.USER_INTERFACE_DEFAULT_NUM;
 import static cn.y.yapimodel.enums.UserRoleEnum.BAN;
 
 
@@ -44,6 +43,8 @@ public class UserInterfaceServiceImpl extends ServiceImpl<UserInterfaceMapper, U
 
     @Resource
     private InvokeCountRedisService invokeCountRedisService;
+
+    private static final Integer USER_INTERFACE_DEFAULT_NUM = 10000;
 
     @Override
     public Boolean addUserInterface(UserInterfaceAddRequest userInterfaceAddRequest) {

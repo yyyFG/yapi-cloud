@@ -7,6 +7,7 @@ import cn.y.yapicommon.cache.LocalCacheConfig;
 import cn.y.yapicommon.config.MyBatisPlusConfig;
 import cn.y.yapicommon.config.JsonConfig;
 import cn.y.yapicommon.cache.RedisCacheManagerConfig;
+import cn.y.yapicommon.config.RabbitMqConfig;
 import cn.y.yapicommon.config.SessionSerializerConfig;
 import cn.y.yapicommon.exception.GlobalExceptionHandler;
 import org.apache.dubbo.config.spring.context.annotation.EnableDubbo;

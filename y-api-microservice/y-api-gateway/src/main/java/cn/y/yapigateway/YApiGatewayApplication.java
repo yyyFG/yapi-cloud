@@ -1,6 +1,7 @@
 package cn.y.yapigateway;
 
 
+import cn.y.yapicommon.config.RabbitMqConfig;
 import cn.y.yapicommon.ratelimit.config.RedissonConfig;
 import cn.y.yapicommon.ratelimit.manager.RedissonRateLimiterManager;
 import lombok.extern.slf4j.Slf4j;
@@ -18,7 +19,7 @@ import org.springframework.core.env.Environment;
 @SpringBootApplication(exclude = {DataSourceAutoConfiguration.class})
 @Slf4j
 @EnableDiscoveryClient
-@Import({RedissonConfig.class, RedissonRateLimiterManager.class})
+@Import({RedissonConfig.class, RedissonRateLimiterManager.class, RabbitMqConfig.class})
 public class YApiGatewayApplication {
 
     public static void main(String[] args) {

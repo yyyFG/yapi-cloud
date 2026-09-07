@@ -40,6 +40,7 @@ import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.dubbo.config.annotation.DubboReference;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
@@ -47,11 +48,16 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.ZSetOperations;
+import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 import org.springframework.stereotype.Service;
 
 import javax.annotation.Resource;
 import java.net.URI;
 import java.util.*;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.stream.Collectors;
 
 import static cn.y.yapicommon.constant.UserConstant.ADMIN_ROLE;
@@ -82,6 +88,10 @@ public class InterfaceInfoServiceImpl extends ServiceImpl<InterfaceInfoMapper, I
 
     @Resource
     private StringRedisTemplate stringRedisTemplate;
+
+    @Resource
+    @Qualifier("invokeExecutor")
+    private ThreadPoolTaskExecutor invokeExecutor;
 
     private static final Integer USER_INTERFACE_DEFAULT_NUM = 10000;
 
@@ -359,18 +369,27 @@ public class InterfaceInfoServiceImpl extends ServiceImpl<InterfaceInfoMapper, I
             innerUserInterfaceService.checkInvokable(loginUser.getId(), interfaceInfo.getId());
         }
 
-        HttpRequest httpRequest;
+//        HttpRequest httpRequest;
         // 执行请求
-        HttpResponse httpResponse;
+//        HttpResponse httpResponse;
         // 在线调用接口
         try {
             // 根据请求类型构造请求：GET 请求将参数拼接在 URL 中（形如 name=xxx&age=18），其他请求将参数放入请求体（JSON 字符串）
-            if ("GET".equalsIgnoreCase(method)) {
-                httpRequest = HttpRequest.get(interfaceInfo.getUrl() + "?" + requestParams);
-            } else {
-                httpRequest = HttpRequest.post(interfaceInfo.getUrl()).body(requestParams);
-            }
-            httpResponse = httpRequest.execute();
+//            if ("GET".equalsIgnoreCase(method)) {
+//                httpRequest = HttpRequest.get(interfaceInfo.getUrl() + "?" + requestParams);
+//            } else {
+//                httpRequest = HttpRequest.post(interfaceInfo.getUrl()).body(requestParams);
+//            }
+//            httpResponse = httpRequest.execute();
+            // 改造为线程池
+            Future<String> future = invokeExecutor.submit(() -> {
+                log.info("在线调用执行线程: {}", Thread.currentThread().getName());
+                HttpRequest request = "GET".equalsIgnoreCase(method)
+                        ? HttpRequest.get(interfaceInfo.getUrl() + "?" + requestParams)
+                        : HttpRequest.post(interfaceInfo.getUrl()).body(requestParams);
+                return request.timeout(5000).execute().body();
+            });
+            String result = future.get(10, TimeUnit.SECONDS);
             // 如果接口返回值是空的，也当他调用成功
             if (!Objects.equals(loginUser.getId(), userId) && !ADMIN_ROLE.equals(loginUser.getUserAccount())) {
                 boolean b = innerUserInterfaceService.invokeCount(interfaceInfo.getId(), loginUser.getId());
@@ -385,15 +404,20 @@ public class InterfaceInfoServiceImpl extends ServiceImpl<InterfaceInfoMapper, I
                     log.error("排行榜计数失败, interfaceId={}", interfaceInfo.getId(), e);
                 }
             }
-            String result = httpResponse.body();
             log.info("用户 {} 调用接口 {}，响应: {}", loginUser.getUserAccount(), interfaceInfo.getInterfaceName(), result);
             return result;
-        }catch (BusinessException e) {
+         }catch (BusinessException e) {
             log.error("用户 {} 调用接口 {} 失败", loginUser.getUserAccount(), interfaceInfo.getInterfaceName(), e);
             throw new BusinessException(ErrorCode.OPERATION_ERROR, "调用失败" + e.getMessage());
         } catch (HttpException e) {
             log.error("用户 {} 调用接口 {} 失败", loginUser.getUserAccount(), interfaceInfo.getInterfaceName(), e);
             throw new BusinessException(ErrorCode.OPERATION_ERROR, "调用接口失败，目标服务不可达");
+        } catch (TimeoutException e) {
+            log.error("用户 {} 调用接口 {} 超时", loginUser.getUserAccount(), interfaceInfo.getInterfaceName(), e);
+            throw new BusinessException(ErrorCode.OPERATION_ERROR, "接口调用超时，请稍后重试");
+        } catch (ExecutionException e) {
+            log.error("用户 {} 调用接口 {} 失败", loginUser.getUserAccount(), interfaceInfo.getInterfaceName(), e);
+            throw new BusinessException(ErrorCode.OPERATION_ERROR, "接口调用失败");
         } catch (Exception e) {
             log.error("用户 {} 调用接口 {} 失败", loginUser.getUserAccount(), interfaceInfo.getInterfaceName(), e);
             throw new BusinessException(ErrorCode.OPERATION_ERROR, "接口调用失败");
@@ -607,6 +631,7 @@ public class InterfaceInfoServiceImpl extends ServiceImpl<InterfaceInfoMapper, I
         String url = interfaceInfoQueryRequest.getUrl();
         String path = interfaceInfoQueryRequest.getPath();
         String method = interfaceInfoQueryRequest.getMethod();
+        Integer invokeCount = interfaceInfoQueryRequest.getInvokeCount();
         if (StrUtil.isNotBlank(method)){
             method = interfaceInfoQueryRequest.getMethod().toUpperCase();
         }
@@ -618,6 +643,7 @@ public class InterfaceInfoServiceImpl extends ServiceImpl<InterfaceInfoMapper, I
         queryWrapper.eq(StringUtils.isNotBlank(method), "method", method);
         queryWrapper.eq(userId != null, "userId", userId);
         queryWrapper.eq(status != null, "status", status);
+        queryWrapper.eq(invokeCount != null, "invokeCount", invokeCount);
         queryWrapper.like(StringUtils.isNotBlank(requestHeader), "requestHeader", requestHeader);
         queryWrapper.like(StringUtils.isNotBlank(requestParams), "requestParams", requestParams);
         queryWrapper.like(StringUtils.isNotBlank(responseHeader), "responseHeader", responseHeader);

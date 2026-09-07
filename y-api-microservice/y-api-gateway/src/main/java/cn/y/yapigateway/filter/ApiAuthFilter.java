@@ -7,16 +7,20 @@ import cn.y.yapiclient.innerservice.InnerInterfaceInfoService;
 import cn.y.yapiclient.innerservice.InnerUserInterfaceService;
 import cn.y.yapiclient.innerservice.InnerUserService;
 import cn.y.yapiclientsdk.utils.SignUtils;
+import cn.y.yapicommon.config.RabbitMqConfig;
 import cn.y.yapicommon.constant.RedisKeyConstant;
 import cn.y.yapicommon.exception.BusinessException;
 import cn.y.yapicommon.ratelimit.enums.RateLimitType;
 import cn.y.yapicommon.ratelimit.manager.RedissonRateLimiterManager;
 import cn.y.yapigateway.filter.support.GatewayPathMatcher;
+import cn.y.yapimodel.dto.invoke.InvokeMessage;
 import cn.y.yapimodel.entity.InterfaceInfo;
 import cn.y.yapimodel.entity.User;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.dubbo.config.annotation.DubboReference;
 import org.reactivestreams.Publisher;
+import org.springframework.amqp.rabbit.core.RabbitTemplate;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.cloud.gateway.filter.GatewayFilterChain;
 import org.springframework.cloud.gateway.filter.GlobalFilter;
 import org.springframework.core.Ordered;
@@ -30,10 +34,12 @@ import org.springframework.http.MediaType;
 import org.springframework.http.server.reactive.ServerHttpRequest;
 import org.springframework.http.server.reactive.ServerHttpResponse;
 import org.springframework.http.server.reactive.ServerHttpResponseDecorator;
+import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 import org.springframework.stereotype.Component;
 import org.springframework.web.server.ServerWebExchange;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
+import reactor.core.scheduler.Schedulers;
 
 import javax.annotation.Resource;
 import java.io.UnsupportedEncodingException;
@@ -43,6 +49,10 @@ import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
+import java.util.concurrent.ExecutorService;
 
 /**
  * SDK 调用流量：IP 限流 + AK/SK 鉴权 + 用户限流 + 防重放/时间戳/签名校验 + 接口校验限流 + 转发调用计数
@@ -66,6 +76,14 @@ public class ApiAuthFilter implements GlobalFilter, Ordered {
     @Resource
     private RedissonRateLimiterManager rateLimiterManager;
 
+    @Resource
+    private RabbitTemplate rabbitTemplate;
+
+    // 专用线程池
+    @Resource
+    @Qualifier("gatewayAsyncExecutor")
+    private ThreadPoolTaskExecutor gatewayAsyncExecutor;
+
     @Override
     public Mono<Void> filter(ServerWebExchange exchange, GatewayFilterChain chain) {
         ServerHttpRequest request = exchange.getRequest();
@@ -84,10 +102,10 @@ public class ApiAuthFilter implements GlobalFilter, Ordered {
         String clientIp = request.getRemoteAddress().getAddress().getHostAddress();
         // 匿名 IP 限流：防无效请求刷网关（鉴权失败的流量也拦得住）
         boolean allowed = rateLimiterManager.doRateLimit(
-                RateLimitType.IP.getPrefix() + clientIp, 20, 1);
+                RateLimitType.IP.getPrefix() + clientIp, 200, 1);
         if (!allowed) {
             log.warn("IP 限流: ip={}", clientIp);
-            return handleError(response, HttpStatus.TOO_MANY_REQUESTS, 42900,"请求过于频繁，请稍后再试", requestId);
+            return handleError(response, HttpStatus.TOO_MANY_REQUESTS, 42900, "请求过于频繁，请稍后再试", requestId);
         }
 
         // 3. 用户鉴权（判断 ak、sk 是否合法）
@@ -111,19 +129,30 @@ public class ApiAuthFilter implements GlobalFilter, Ordered {
 
         // todo 2. 校验权限，从数据库中判断是否与用户的 accessKey 相同
         User invokeUser = null;
+        InterfaceInfo interfaceInfo = null;
+        // 改用线程池
         try {
-            // 调用内部服务，根据密钥访问获取用户信息
-            invokeUser = innerUserService.getInvokeUser(accessKey);
-            if (invokeUser == null) {
-                return handleError(response, HttpStatus.FORBIDDEN, 40100, "accessKey 无效或不存在", requestId);
+            // 并行提交两个互不依赖的查询：查用户 + 查接口，同时进行
+            CompletableFuture<User> userFuture = CompletableFuture.supplyAsync(() -> {
+//                log.info("网关并行线程-查用户: {}", Thread.currentThread().getName());
+                return innerUserService.getInvokeUser(accessKey);
+            }, gatewayAsyncExecutor);
+            CompletableFuture<InterfaceInfo> interfaceFuture = CompletableFuture.supplyAsync(() -> {
+//                log.info("网关并行线程-查接口: {}", Thread.currentThread().getName());
+                return innerInterfaceInfoService.getInterfaceInfo(path, method);
+            }, gatewayAsyncExecutor);   // ← 顺便把这个缺失的参数补上
+
+            // 凭票取结果
+            invokeUser = userFuture.join();
+            interfaceInfo = interfaceFuture.join();
+        } catch (CompletionException e) {
+            // join 会把任务里的异常包进 CompletionException，拆出来处理
+            if (e.getCause() instanceof BusinessException) {
+                BusinessException businessException = (BusinessException) e.getCause();
+                return handleError(response, HttpStatus.FORBIDDEN, businessException.getCode(), businessException.getMessage(), requestId);
             }
-            boolean userAllowed = rateLimiterManager.doRateLimit(
-                    RateLimitType.USER.getPrefix() + invokeUser.getId(), 2, 1
-            );
-            if (!userAllowed) {
-                log.warn("调用方限流: userId={}", invokeUser.getId());
-                return handleError(response, HttpStatus.TOO_MANY_REQUESTS, 42900, "请求过于频繁，请稍后再试", requestId);
-            }
+            log.error("网关调用内部服务异常, requestId={}", requestId, e);
+            return handleError(response, HttpStatus.INTERNAL_SERVER_ERROR, 50000, "平台内部错误，请联系管理员", requestId);
         } catch (BusinessException e) {
             // 如果用户信息为空，处理未授权情况并返回响应
             return handleError(response, HttpStatus.FORBIDDEN, e.getCode(), e.getMessage(), requestId);
@@ -131,6 +160,18 @@ public class ApiAuthFilter implements GlobalFilter, Ordered {
             // 其余异常：统一 500，不泄露内部细节
             log.error("网关调用内部服务异常, requestId={}", requestId, e);
             return handleError(response, HttpStatus.INTERNAL_SERVER_ERROR, 50000, "平台内部错误，请联系管理员", requestId);
+        }
+        // 调用内部服务，根据密钥访问获取用户信息
+//        invokeUser = innerUserService.getInvokeUser(accessKey);
+        if (invokeUser == null) {
+            return handleError(response, HttpStatus.FORBIDDEN, 40100, "accessKey 无效或不存在", requestId);
+        }
+        boolean userAllowed = rateLimiterManager.doRateLimit(
+                RateLimitType.USER.getPrefix() + invokeUser.getId(), 100, 1
+        );
+        if (!userAllowed) {
+            log.warn("调用方限流: userId={}", invokeUser.getId());
+            return handleError(response, HttpStatus.TOO_MANY_REQUESTS, 42900, "请求过于频繁，请稍后再试", requestId);
         }
 
         // todo 3. 校验随机数，随机数可以用 hashMap 或 redis 存储
@@ -184,10 +225,11 @@ public class ApiAuthFilter implements GlobalFilter, Ordered {
 
         // todo 5. 请求的接口是否存在
         // todo 从数据库中查询接口是否存在，以及请求方法是否匹配（还可以校验请求参数）
-        InterfaceInfo interfaceInfo = null;
+        // 上面改用线程池查询了
+//        InterfaceInfo interfaceInfo = null;
         try {
             // 调用内部服务，获取接口信息
-            interfaceInfo = innerInterfaceInfoService.getInterfaceInfo(path, method);
+//            interfaceInfo = innerInterfaceInfoService.getInterfaceInfo(path, method);
             if (interfaceInfo == null) {
                 return handleError(response, HttpStatus.NOT_FOUND, 40400, "接口不存在", requestId);
             }
@@ -195,7 +237,7 @@ public class ApiAuthFilter implements GlobalFilter, Ordered {
             innerUserInterfaceService.checkInvokable(invokeUser.getId(), interfaceInfo.getId());
             // 接口调用限流
             boolean interfaceAllowed = rateLimiterManager.doRateLimit(
-                    RateLimitType.INTERFACE.getPrefix() + interfaceInfo.getId(), 10, 1
+                    RateLimitType.INTERFACE.getPrefix() + interfaceInfo.getId(), 150, 1
             );
             if (!interfaceAllowed) {
                 log.warn("接口限流: interfaceId={}", interfaceInfo.getId());
@@ -238,45 +280,51 @@ public class ApiAuthFilter implements GlobalFilter, Ordered {
             // 获取数据缓冲工厂
             DataBufferFactory bufferFactory = originalResponse.bufferFactory();
             ServerHttpResponseDecorator decoratedResponse = new ServerHttpResponseDecorator(originalResponse) {
-                // 重写writeWith方法，用于处理响应体的数据
-                // 这段方法就是只要当我们的模拟接口调用完成之后,等它返回结果，
-                // 就会调用writeWith方法,我们就能根据响应结果做一些自己的处理
                 @Override
                 public Mono<Void> writeWith(Publisher<? extends DataBuffer> body) {
-                    if (body instanceof Flux) {
-                        Flux<? extends DataBuffer> fluxBody = Flux.from(body);
-                        // 返回一个处理后的响应体
-                        // (这里就理解为它在拼接字符串,它把缓冲区的数据取出来，一点一点拼接好)
-                        return super.writeWith(fluxBody.map(dataBuffer -> {
-                            if (HttpStatus.OK.equals(getStatusCode())) {
-                                if (!innerUserService.isAdmin(userId)) {
-                                    // todo 7. 调用成功，接口调用次数 + 1 invokeCount
+                    Flux<? extends DataBuffer> fluxBody = Flux.from(body);
+                    return super.writeWith(fluxBody.map(dataBuffer -> {
+                        if (HttpStatus.OK.equals(getStatusCode())) {
+//                                if (!innerUserService.isAdmin(userId)) {
+//                                    // todo 7. 调用成功，接口调用次数 + 1 invokeCount
+//                                    try {
+//                                        // 调用内部用户接口信息服务，记录接口调用次数
+//                                        innerUserInterfaceService.invokeCount(interfaceInfoId, userId);
+//                                    } catch (Exception e) {
+//                                        log.error("invokeCount error", e);
+//                                    }
+//                                }
+                            if (!innerUserService.isAdmin(userId)) {
+                                // 改为消息队列
+                                InvokeMessage msg = new InvokeMessage();
+                                msg.setMsgId(UUID.randomUUID().toString());
+                                msg.setUserId(userId);
+                                msg.setInterfaceId(interfaceInfoId);
+                                msg.setTimestamp(System.currentTimeMillis());
+                                // WebFlux 线程不阻塞：异步发出，失败仅记日志
+                                Mono.fromRunnable(() -> {
                                     try {
-                                        // 调用内部用户接口信息服务，记录接口调用次数
-                                        innerUserInterfaceService.invokeCount(interfaceInfoId, userId);
+                                        rabbitTemplate.convertAndSend(RabbitMqConfig.INVOKE_EXCHANGE, "", msg);
                                     } catch (Exception e) {
-                                        log.error("invokeCount error", e);
+                                        log.error("发送调用消息失败, interfaceId={}", interfaceInfoId, e);
                                     }
-                                }
+                                }).subscribeOn(Schedulers.boundedElastic()).subscribe();
                             }
-                            // 读取响应体的内容并转换为字节数组
-                            byte[] content = new byte[dataBuffer.readableByteCount()];
-                            dataBuffer.read(content);
-                            DataBufferUtils.release(dataBuffer);//释放掉内存
-                            // 构建日志
-                            log.info("响应结果：{}", new String(content, StandardCharsets.UTF_8));
-                            // 将处理后的内容重新包装成DataBuffer并返回
-                            return bufferFactory.wrap(content);
-                        }));
-                    } else {
-                        log.error("响应结果异常：{}", getStatusCode());
-                    }
-                    return super.writeWith(body);
+                        }
+                        // 读取响应体的内容并转换为字节数组
+                        byte[] content = new byte[dataBuffer.readableByteCount()];
+                        dataBuffer.read(content);
+                        DataBufferUtils.release(dataBuffer);//释放掉内存
+                        // 构建日志
+                        log.info("响应结果：{}", new String(content, StandardCharsets.UTF_8));
+                        // 将处理后的内容重新包装成DataBuffer并返回
+                        return bufferFactory.wrap(content);
+                    }));
                 }
             };
-            // 对于200 OK的请求,将装饰后的响应对象传递给下一个过滤器链,并继续处理(设置repsonse对象为装饰过的)
+            // 对于 200 OK的请求,将装饰后的响应对象传递给下一个过滤器链,并继续处理(设置repsonse对象为装饰过的)
             return chain.filter(exchange.mutate().response(decoratedResponse).build());
-        } catch (Exception e){
+        } catch (Exception e) {
             // 处理异常情况，记录错误日志
             log.error("网关处理响应异常" + e);
             return chain.filter(exchange);
@@ -299,6 +347,6 @@ public class ApiAuthFilter implements GlobalFilter, Ordered {
 
     @Override
     public int getOrder() {
-        return 0;
+        return -2;
     }
 }

@@ -63,6 +63,12 @@
             <artifactId>spring-boot-starter-aop</artifactId>
         </dependency>
 
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-amqp</artifactId>
+        </dependency>
+
+
         <!-- 本地缓存 -->
         <dependency>
             <groupId>org.springframework.boot</groupId>

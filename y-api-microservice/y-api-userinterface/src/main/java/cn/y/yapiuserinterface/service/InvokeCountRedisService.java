@@ -126,7 +126,7 @@ public class InvokeCountRedisService {
     /**
      * 定时任务：每 5 分钟把差量批量回写 DB
      */
-    @Scheduled(fixedDelay = 300_000, initialDelay = 60_000)
+    @Scheduled(fixedDelay = 600_000, initialDelay = 60_000)
     public void syncDeltaToDb() {
         RLock lock = redissonClient.getLock("invoke:syncLock");
         try {

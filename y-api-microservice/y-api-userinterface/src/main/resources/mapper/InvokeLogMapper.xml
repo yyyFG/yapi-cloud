@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="cn.y.yapiuserinterface.mapper.InvokeLogMapper">
+
+    <resultMap id="BaseResultMap" type="cn.y.yapimodel.entity.InvokeLog">
+            <id property="id" column="id" />
+            <result property="userId" column="userId" />
+            <result property="interfaceId" column="interfaceId" />
+            <result property="requestTime" column="requestTime" />
+            <result property="success" column="success" />
+            <result property="errorMsg" column="errorMsg" />
+            <result property="isDelete" column="isDelete" />
+    </resultMap>
+
+    <sql id="Base_Column_List">
+        id,userId,interfaceId,requestTime,success,errorMsg,
+        isDelete
+    </sql>
+</mapper>

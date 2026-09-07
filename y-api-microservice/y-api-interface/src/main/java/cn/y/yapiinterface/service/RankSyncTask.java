@@ -2,6 +2,7 @@ package cn.y.yapiinterface.service;
 
 import cn.y.yapicommon.constant.RedisKeyConstant;
 import cn.y.yapimodel.entity.InterfaceInfo;
+import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.ZSetOperations;
@@ -32,7 +33,9 @@ public class RankSyncTask {
                 .rangeWithScores(RedisKeyConstant.INTERFACE_RANK_KEY, 0, -1);
         if (tuples == null || tuples.isEmpty()) return;
         // 一次性查出当前 DB 值，内存对比（一条 SELECT）
-        Map<Long, Integer> dbMap = interfaceInfoService.list().stream()
+        Map<Long, Integer> dbMap = interfaceInfoService.list(
+                new QueryWrapper<InterfaceInfo>().select("id", "invokeCount"))
+                .stream()
                 .collect(Collectors.toMap(InterfaceInfo::getId,
                         i -> i.getInvokeCount() == null ? 0 : i.getInvokeCount()));
         for (ZSetOperations.TypedTuple<String> t : tuples) {

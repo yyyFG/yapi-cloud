@@ -31,7 +31,7 @@
 
 ## 技术栈
 
-- 后端：Java 8、Spring Boot、Spring Cloud Gateway、Spring Cloud Alibaba Nacos、Dubbo、MyBatis-Plus、MySQL、Redis
+- 后端：Java 8、Spring Boot、Spring Cloud Gateway、Spring Cloud Alibaba Nacos、Dubbo、MyBatis-Plus、MySQL、Redis、RabbitMQ、Spring ThreadPoolTaskExecutor
 - 前端：Vue 3、TypeScript、Vite、Ant Design Vue、Pinia、Vue Router
 - SDK：Java、Hutool、Lombok
 

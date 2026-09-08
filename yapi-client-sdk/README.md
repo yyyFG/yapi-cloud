@@ -2,7 +2,7 @@
 
 ## 项目简介
 
-`yapi-client-sdk` 是 yApiRelay — 接口中转站的 Java 客户端 SDK。开发者引入本 SDK 后，使用在平台注册时获取的 `accessKey/secretKey` 即可调用平台上的接口。SDK 会自动完成签名鉴权（自动添加 `accessKey`、`nonce`、`timestamp`、`sign` 请求头）、自动区分 GET/POST 组装请求并处理响应，做到开箱即用。
+`yapi-client-sdk` 是 yApiRelay — 接口开放平台的 Java 客户端 SDK。开发者引入本 SDK 后，使用在平台注册时获取的 `accessKey/secretKey` 即可调用平台上的接口。SDK 会自动完成签名鉴权（自动添加 `accessKey`、`nonce`、`timestamp`、`sign` 请求头）、自动区分 GET/POST 组装请求并处理响应，做到开箱即用。
 
 ## 快速开始
 

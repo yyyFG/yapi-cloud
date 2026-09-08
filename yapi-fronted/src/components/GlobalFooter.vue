@@ -1,7 +1,7 @@
 <template>
   <a-layout-footer class="footer">
     <div class="footer-content">
-      <p class="copyright">yApiRelay — 接口中转站</p>
+      <p class="copyright">yApiRelay — 接口开放平台</p>
     </div>
   </a-layout-footer>
 </template>

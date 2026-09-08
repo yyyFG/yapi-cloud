@@ -6,7 +6,7 @@
         <RouterLink to="/">
           <div class="header-left">
             <img class="logo" src="@/assets/logo.png" alt="Logo" />
-            <h1 class="site-title">yApiRelay — 接口中转站</h1>
+            <h1 class="site-title">yApiRelay — 接口开放平台</h1>
           </div>
         </RouterLink>
       </a-col>

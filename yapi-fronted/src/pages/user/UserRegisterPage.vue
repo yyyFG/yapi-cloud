@@ -8,9 +8,9 @@
       <div class="auth-head">
         <div class="auth-badge">
           <ThunderboltOutlined />
-          yApiRelay — 接口中转站
+          yApiRelay — 接口开放平台
         </div>
-        <h2 class="auth-title">注册 接口中转站</h2>
+        <h2 class="auth-title">注册 接口开放平台</h2>
         <p class="auth-desc">创建账号，开始浏览和调用接口</p>
       </div>
 

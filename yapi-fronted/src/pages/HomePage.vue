@@ -8,7 +8,7 @@
       <div class="container hero-inner">
         <div class="hero-badge">
           <ThunderboltOutlined />
-          YAPI 接口开放平台
+          yApiRelay — 接口中转站
         </div>
         <h1 class="hero-title">
           发现优质 API，
@@ -92,7 +92,7 @@
     <section class="container cta-section">
       <div class="cta-card">
         <h2 class="cta-title">准备好把你的应用接入强大接口了吗？</h2>
-        <p class="cta-desc">浏览、调用、构建，从 YAPI 接口开放平台开始。</p>
+        <p class="cta-desc">浏览、调用、构建，从 接口中转站开始。</p>
         <div class="cta-actions">
           <a-button type="primary" size="large" class="btn-primary" @click="router.push('/interfaces')">
             查看接口市场

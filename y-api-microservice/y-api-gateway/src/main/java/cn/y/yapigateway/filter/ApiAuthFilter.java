@@ -250,6 +250,8 @@ public class ApiAuthFilter implements GlobalFilter, Ordered {
                 // url 本身可能已带 query 参数，此时用 & 连接
                 target += (target.contains("?") ? "&" : "?") + originalQuery;
             }
+            // 新增：把数据库里的真实地址放进属性，交给 DynamicUrlFilter 使用
+            exchange.getAttributes().put(DynamicUrlFilter.DYNAMIC_TARGET_URL_ATTR, URI.create(target));
             ServerHttpRequest newRequest = request.mutate()
                     .uri(URI.create(target))
                     .build();

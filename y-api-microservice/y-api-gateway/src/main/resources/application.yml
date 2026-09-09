@@ -22,7 +22,7 @@ spring:
             - Path=/userInterface/**
         # 在线调用第三方接口的入口：CustomGlobalFilter 校验 AK/SK 后按接口真实地址转发
         - id: api-invoke
-          uri: http://localhost:8123
+          uri: http://localhost
           predicates:
             - Path=/api/**
       globalcors:

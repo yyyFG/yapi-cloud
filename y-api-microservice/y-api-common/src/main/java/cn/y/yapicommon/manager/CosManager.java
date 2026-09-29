@@ -23,7 +23,6 @@ import java.util.UUID;
  * Cos 对象存储操作
  */
 @Component
-@ConditionalOnBean(COSClient.class)
 @Slf4j
 public class CosManager {
 

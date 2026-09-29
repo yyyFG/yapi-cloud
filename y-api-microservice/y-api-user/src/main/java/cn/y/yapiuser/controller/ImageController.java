@@ -8,6 +8,7 @@ import cn.y.yapicommon.common.ErrorCode;
 import cn.y.yapicommon.common.ResultUtils;
 import cn.y.yapicommon.exception.BusinessException;
 import cn.y.yapicommon.manager.CosManager;
+import org.springframework.cloud.context.config.annotation.RefreshScope;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestPart;

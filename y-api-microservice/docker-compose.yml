@@ -1,0 +1,228 @@
+services:
+  # ================= 中间件 =================
+  nacos:
+    container_name: nacos
+    image: nacos/nacos-server:v2.4.3
+    environment:
+      - MODE=standalone
+      - TZ=Asia/Shanghai
+    volumes:
+      - nacos-logs:/home/nacos/logs
+    ports:
+      - "8848:8848"
+      - "9848:9848"
+      - "9849:9849"
+    networks:
+      yapi-net:
+        ipv4_address: 172.19.0.10
+    restart: always
+
+  mysql:
+    container_name: mysql
+    image: mysql:8.4.4
+    ports:
+      - "3306:3306"
+    networks:
+      yapi-net:
+        ipv4_address: 172.19.0.20
+    environment:
+      TZ: Asia/Shanghai
+      MYSQL_ROOT_PASSWORD: "123456"
+      MYSQL_DATABASE: yapi
+    command: [
+      'mysqld',
+      '--innodb-buffer-pool-size=80M',
+      '--character-set-server=utf8mb4',
+      '--collation-server=utf8mb4_unicode_ci',
+      '--default-time-zone=+8:00',
+      '--lower-case-table-names=0',
+      '--mysql-native-password=ON'
+    ]
+    volumes:
+      - mysql-data:/var/lib/mysql
+      - mysql-logs:/logs
+    restart: always
+
+  redis:
+    container_name: redis
+    image: redis:5
+    ports:
+      - "6379:6379"
+    networks:
+      yapi-net:
+        ipv4_address: 172.19.0.30
+    command: redis-server --appendonly yes   # 开启 AOF 持久化
+    volumes:
+      - redis-data:/data
+      - redis.conf:/home/redis5/redis.conf
+    environment:
+      TZ: Asia/Shanghai
+    restart: always
+
+  rabbitmq:
+    container_name: rabbitmq
+    hostname: yapi-rabbitmq
+    image: rabbitmq:4.0.8-management
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    networks:
+      yapi-net:
+        ipv4_address: 172.19.0.40
+    environment:
+      - TZ=Asia/Shanghai
+      - RABBITMQ_DEFAULT_USER=admin
+      - RABBITMQ_DEFAULT_PASS=admin
+      - RABBITMQ_DEFAULT_VHOST=/
+    restart: always
+
+  nginx:
+    container_name: nginx
+    image: nginx:1.26.3              # 官方镜像，直接拉
+    ports:
+      - "80:80"
+    volumes:
+      - /home/yapi/y-api-ui:/usr/share/nginx/html                      # 你的前端产物
+      - /home/yapi/nginx/conf.d/default.conf:/etc/nginx/conf.d/default.conf   # 你的配置
+    networks:
+      yapi-net:
+        ipv4_address: 172.19.0.50
+    depends_on:
+      - y-api-gateway
+    restart: always
+
+
+  # ================= 业务服务 =================
+  y-api-user:
+    container_name: y-api-user
+    image: y-api-user:1.0.0
+    build:
+      context: ./y-api-user
+      dockerfile: Dockerfile
+    ports:
+      - "8210:8210"
+    networks:
+      yapi-net:
+        ipv4_address: 172.19.0.101
+    environment:
+      TZ: Asia/Shanghai
+      # 关键：把 prod 配置里的 192.168.1.61 全部覆盖成容器名
+      SPRING_CLOUD_NACOS_DISCOVERY_SERVER_ADDR: nacos:8848
+      SPRING_CLOUD_NACOS_CONFIG_SERVER_ADDR: nacos:8848
+      SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/yapi
+      SPRING_DATASOURCE_USERNAME: root
+      SPRING_DATASOURCE_PASSWORD: "123456"
+      SPRING_REDIS_HOST: redis
+      DUBBO_REGISTRY_ADDRESS: nacos://nacos:8848
+    depends_on:
+      - nacos
+      - mysql
+      - redis
+    restart: always
+
+  y-api-interface:
+    container_name: y-api-interface
+    image: y-api-interface:1.0.0
+    build:
+      context: ./y-api-interface
+      dockerfile: Dockerfile
+    ports:
+      - "8211:8211"
+    networks:
+      yapi-net:
+        ipv4_address: 172.19.0.102
+    environment:
+      TZ: Asia/Shanghai
+      SPRING_CLOUD_NACOS_DISCOVERY_SERVER_ADDR: nacos:8848
+      SPRING_CLOUD_NACOS_CONFIG_SERVER_ADDR: nacos:8848
+      SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/yapi
+      SPRING_DATASOURCE_USERNAME: root
+      SPRING_DATASOURCE_PASSWORD: "123456"
+      SPRING_REDIS_HOST: redis
+      SPRING_RABBITMQ_HOST: rabbitmq
+      SPRING_RABBITMQ_USERNAME: admin
+      SPRING_RABBITMQ_PASSWORD: admin
+      DUBBO_REGISTRY_ADDRESS: nacos://nacos:8848
+    depends_on:
+      - nacos
+      - mysql
+      - redis
+      - rabbitmq
+      - y-api-userinterface
+    restart: always
+
+  y-api-userinterface:
+    container_name: y-api-userinterface
+    image: y-api-userinterface:1.0.0
+    build:
+      context: ./y-api-userinterface
+      dockerfile: Dockerfile
+    ports:
+      - "8212:8212"
+    networks:
+      yapi-net:
+        ipv4_address: 172.19.0.103
+    environment:
+      TZ: Asia/Shanghai
+      SPRING_CLOUD_NACOS_DISCOVERY_SERVER_ADDR: nacos:8848
+      SPRING_CLOUD_NACOS_CONFIG_SERVER_ADDR: nacos:8848
+      SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/yapi
+      SPRING_DATASOURCE_USERNAME: root
+      SPRING_DATASOURCE_PASSWORD: "123456"
+      SPRING_REDIS_HOST: redis
+      SPRING_RABBITMQ_HOST: rabbitmq
+      SPRING_RABBITMQ_USERNAME: admin
+      SPRING_RABBITMQ_PASSWORD: admin
+      DUBBO_REGISTRY_ADDRESS: nacos://nacos:8848
+    depends_on:
+      - nacos
+      - mysql
+      - redis
+      - rabbitmq
+      - y-api-user
+    restart: always
+
+  y-api-gateway:
+    container_name: y-api-gateway
+    image: y-api-gateway:1.0.0
+    build:
+      context: ./y-api-gateway
+      dockerfile: Dockerfile
+    ports:
+      - "18098:18098"
+    networks:
+      yapi-net:
+        ipv4_address: 172.19.0.104
+    environment:
+      TZ: Asia/Shanghai
+      SPRING_CLOUD_NACOS_DISCOVERY_SERVER_ADDR: nacos:8848
+      SPRING_CLOUD_NACOS_CONFIG_SERVER_ADDR: nacos:8848
+      SPRING_REDIS_HOST: redis
+      SPRING_RABBITMQ_HOST: rabbitmq
+      SPRING_RABBITMQ_USERNAME: admin
+      SPRING_RABBITMQ_PASSWORD: admin
+      DUBBO_REGISTRY_ADDRESS: nacos://nacos:8848
+    depends_on:
+      - nacos
+      - redis
+      - rabbitmq
+      - y-api-userinterface
+      - y-api-user
+      - y-api-interface
+    restart: always
+
+volumes:
+  mysql-data:
+  mysql-logs:
+  redis-data:
+  nacos-logs:
+  nacos-data:
+  redis.conf:
+
+networks:
+  yapi-net:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.19.0.0/24
+          gateway: 172.19.0.1

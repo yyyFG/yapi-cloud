@@ -1,0 +1,43 @@
+spring:
+  cloud:
+    nacos:
+      discovery:
+        server-addr: 127.0.0.1:8848
+        username: nacos
+        password: nacos
+      config:
+        server-addr: 127.0.0.1:8848
+        username: nacos
+        password: nacos
+  redis:
+    database: 5
+    host: localhost
+    port: 6379
+    timeout: 5000
+  rabbitmq:
+    host: localhost
+    port: 5672
+    password: guest
+    username: guest
+server:
+  port: 18098
+# 以下配置指定了应用的名称、使用的协议（Dubbo）、注册中心的类型（Nacos）和地址
+dubbo:
+  registry:
+    address: nacos://127.0.0.1:8848
+    parameters:
+      username: nacos
+      password: nacos
+    register-mode: instance
+  application:
+    name: dubbo-y-api-gateway
+    qos-enable: true
+    qos-port: 0 # 设置为 0，系统会自动找一个空闲端口
+  # 指定使用 Dubbo 协议，且端口设置为 -1，表示随机分配可用端口
+  protocol:
+    name: dubbo
+    port: -1
+  consumer:
+    timeout: 60000
+  provider:
+    timeout: 60000

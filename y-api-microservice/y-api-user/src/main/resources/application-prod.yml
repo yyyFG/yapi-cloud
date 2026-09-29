@@ -1,0 +1,63 @@
+spring:
+  cloud:
+    nacos:
+      config:
+        server-addr: 192.168.1.61:8848
+        username: nacos
+        password: nacos
+      discovery:
+        server-addr: 192.168.1.61:8848
+        username: nacos
+        password: nacos
+        metadata:
+          context-path: /user
+  datasource:
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    url: jdbc:mysql://192.168.1.61:3306/yapi
+    username: root
+    password: 123456
+  redis:
+    database: 5
+    host: 192.168.1.61
+    port: 6379
+    timeout: 5000
+server:
+  port: 8210
+  servlet:
+    context-path: /user
+    # 30 days expire
+    session:
+      cookie:
+        max-age: 2592000
+        path: /
+dubbo:
+  registry:
+    address: nacos://192.168.1.61:8848
+    parameters:
+      username: nacos
+      password: nacos
+    register-mode: instance
+  application:
+    name: dubbo-y-api-user
+    qos-enable: true
+    qos-port: 0 # 设置为 0，系统会自动找一个空闲端口
+  # 指定使用 Dubbo 协议，且端口设置为 -1，表示随机分配可用端口
+  protocol:
+    name: dubbo
+    port: -1
+  consumer:
+    timeout: 60000
+  provider:
+    timeout: 60000
+mybatis-plus:
+  configuration:
+    map-underscore-to-camel-case: false
+knife4j:
+  enable: false    # 生产关闭接口文档，收敛暴露面
+cos:
+  client:
+    host: xxx
+    accessKey: xxx
+    secretKey: xxx
+    region: xxx
+    bucket: xxx
